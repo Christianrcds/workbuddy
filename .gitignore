@@ -52,3 +52,7 @@ logs/
 # Build artifacts
 /bin/
 /dist/
+
+
+#plans
+plan.md
