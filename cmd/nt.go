@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
-	"strings"
 	"workbuddy/internal/note"
 
 	"github.com/spf13/cobra"
@@ -26,8 +25,6 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("nt called")
-
 		content, _ := cmd.Flags().GetString("content")
 		tags, _ := cmd.Flags().GetStringSlice("tags")
 
@@ -39,43 +36,14 @@ to quickly create a Cobra application.`,
 		defer db.Close()
 
 		ctx := context.Background()
+		service := note.NewService(db)
 
-		trx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			os.Exit(1)
-		}
-		defer trx.Rollback()
-
-		repo := note.NewRepositoryWithTx(trx)
-
-		createdNote, err := repo.CreateNote(ctx, content)
-
+		note, err := service.CreateNoteWithTags(ctx, content, tags)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating note: %v\n", err)
 			os.Exit(1)
 		}
-
-		for _, tagName := range tags {
-			tagName = strings.TrimSpace(tagName)
-
-			tag, err := repo.CreateTag(ctx, tagName)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error creating tag: %v\n", err)
-				os.Exit(1)
-			}
-
-			err = repo.AddTagToNote(ctx, note.AddTagToNoteParams{
-				NoteID: createdNote.ID,
-				TagID:  tag.ID,
-			})
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error adding tag to note: %v\n", err)
-				os.Exit(1)
-			}
-		}
-
-		trx.Commit()
-
+		fmt.Printf("Created note with ID %d\n", note.ID)
 	},
 }
 
