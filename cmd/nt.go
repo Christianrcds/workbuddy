@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"workbuddy/internal/note"
@@ -18,17 +17,16 @@ import (
 var ntCmd = &cobra.Command{
 	Use:   "nt",
 	Short: "Creates Note with Tags",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Long:  `Create a new note with associated tags.`,
+	Example: `
+	workbuddy nt --content "Finish the report" --tags work,urgent
+	workbuddy nt -c "Finish the report" -t "work, urgent"
+	workbuddy nt -c "Read Go documentation" -t learning,go`,
 	Run: func(cmd *cobra.Command, args []string) {
 		content, _ := cmd.Flags().GetString("content")
 		tags, _ := cmd.Flags().GetStringSlice("tags")
 
-		db, err := sql.Open("sqlite", "internal/database/workbuddy.db")
+		db, err := openDatabase()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
 			os.Exit(1)

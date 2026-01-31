@@ -5,10 +5,8 @@ package cmd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
-	"time"
 	"workbuddy/internal/note"
 
 	"github.com/spf13/cobra"
@@ -25,9 +23,9 @@ var searchCmd = &cobra.Command{
     workbuddy search -t learning`,
 	Run: func(cmd *cobra.Command, args []string) {
 		tag, _ := cmd.Flags().GetString("tag")
-		fmt.Printf("Searching for tag: %s\n", tag)
+		limit, _ := cmd.Flags().GetInt("limit")
 
-		db, err := sql.Open("sqlite", "internal/database/workbuddy.db")
+		db, err := openDatabase()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
 			os.Exit(1)
@@ -36,7 +34,7 @@ var searchCmd = &cobra.Command{
 
 		ctx := context.Background()
 		service := note.NewService(db)
-		notes, err := service.GetNotesByTag(ctx, tag)
+		notes, err := service.GetNotesByTag(ctx, tag, limit)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error searching notes: %v\n", err)
 			os.Exit(1)
@@ -45,18 +43,14 @@ var searchCmd = &cobra.Command{
 			fmt.Println("No notes found.")
 			return
 		}
-		fmt.Printf("Found %d note(s):\n\n", len(notes))
 
-		for _, note := range notes {
-			fmt.Printf("Note: %s\n", note.Content)
-			fmt.Printf("Created: %s\n", note.CreatedAt.In(time.Local).Format(time.RFC1123))
-			fmt.Println("---")
-		}
+		displayNotes(notes, fmt.Sprintf("🔍 Search Results: '%s' (%d found)", tag, len(notes)))
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(searchCmd)
 
-	searchCmd.Flags().StringP("tag", "t", "standup", "One tag to search for")
+	searchCmd.Flags().StringP("tag", "t", "standup", "Tag to search for")
+	searchCmd.Flags().IntP("limit", "l", 1, "Maximum number of notes to return")
 }

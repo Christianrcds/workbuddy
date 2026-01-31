@@ -5,14 +5,11 @@ package cmd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
-	"time"
 	"workbuddy/internal/note"
 
 	"github.com/spf13/cobra"
-	_ "modernc.org/sqlite"
 )
 
 // listCmd represents the list command
@@ -26,8 +23,7 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-
-		db, err := sql.Open("sqlite", "internal/database/workbuddy.db")
+		db, err := openDatabase()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
 			os.Exit(1)
@@ -35,7 +31,6 @@ to quickly create a Cobra application.`,
 		defer db.Close()
 
 		repo := note.NewRepository(db)
-
 		ctx := context.Background()
 
 		notes, err := repo.ListNotes(ctx)
@@ -48,14 +43,8 @@ to quickly create a Cobra application.`,
 			fmt.Println("No notes found.")
 			return
 		}
-		fmt.Printf("Found %d note(s):\n\n", len(notes))
 
-		for _, note := range notes {
-			fmt.Printf("Note: %s\n", note.Content)
-			fmt.Printf("Created: %s\n", note.CreatedAt.In(time.Local).Format(time.RFC1123))
-			fmt.Println("---")
-		}
-
+		displayNotes(notes, fmt.Sprintf("📝 Notes (%d)", len(notes)))
 	},
 }
 

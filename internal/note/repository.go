@@ -7,8 +7,6 @@ import (
 
 type Repository interface {
 	CreateNote(ctx context.Context, params string) (Note, error)
-	GetNote(ctx context.Context, id int64) (Note, error)
-	DeleteNote(ctx context.Context, id int64) error
 	ListNotes(ctx context.Context) ([]Note, error)
 
 	// Tags
@@ -17,7 +15,7 @@ type Repository interface {
 
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
-	GetNotesByTag(ctx context.Context, name string) ([]Note, error)
+	GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagWithLimitParams) ([]Note, error)
 }
 
 type sqliteRepo struct {
@@ -27,14 +25,6 @@ type sqliteRepo struct {
 
 func (r *sqliteRepo) CreateNote(ctx context.Context, params string) (Note, error) {
 	return r.queries.CreateNote(ctx, params)
-}
-
-func (r *sqliteRepo) GetNote(ctx context.Context, id int64) (Note, error) {
-	return r.queries.GetNote(ctx, id)
-}
-
-func (r *sqliteRepo) DeleteNote(ctx context.Context, id int64) error {
-	return r.queries.DeleteNote(ctx, id)
 }
 
 func (r *sqliteRepo) ListNotes(ctx context.Context) ([]Note, error) {
@@ -53,8 +43,8 @@ func (r *sqliteRepo) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) e
 	return r.queries.AddTagToNote(ctx, arg)
 }
 
-func (r *sqliteRepo) GetNotesByTag(ctx context.Context, name string) ([]Note, error) {
-	return r.queries.GetNotesByTag(ctx, name)
+func (r *sqliteRepo) GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagWithLimitParams) ([]Note, error) {
+	return r.queries.GetNotesByTagWithLimit(ctx, arg)
 }
 
 func NewRepository(db *sql.DB) Repository {

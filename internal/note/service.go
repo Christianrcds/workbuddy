@@ -54,8 +54,11 @@ func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags [
 	return createdNote, nil
 }
 
-func (s *Service) GetNotesByTag(ctx context.Context, tag string) ([]Note, error) {
-	notes, err := s.repo.GetNotesByTag(ctx, tag)
+func (s *Service) GetNotesByTag(ctx context.Context, tag string, limit int) ([]Note, error) {
+	notes, err := s.repo.GetNotesByTagWithLimit(ctx, GetNotesByTagWithLimitParams{
+		Name:  tag,
+		Limit: int64(limit),
+	})
 	if err != nil {
 		return []Note{}, err
 	}
