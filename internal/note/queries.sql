@@ -1,9 +1,9 @@
 -- Notes
 -- name: CreateNote :one
 INSERT INTO
-    note (name, content)
+    note (content)
 VALUES
-    (?, ?) RETURNING *;
+    (?) RETURNING *;
 
 -- name: GetNote :one
 SELECT
@@ -24,7 +24,6 @@ ORDER BY
 -- name: UpdateNote :one
 UPDATE note
 SET
-    name = ?,
     content = ?
 WHERE
     id = ? RETURNING *;
@@ -84,7 +83,7 @@ FROM
 WHERE
     nt.note_id = ?
 ORDER BY
-    t.name;
+    created_at desc;
 
 -- name: GetNotesByTag :many
 SELECT
@@ -101,7 +100,6 @@ ORDER BY
 -- name: GetNotesWithTags :many
 SELECT
     n.id,
-    n.name,
     n.content,
     n.created_at,
     GROUP_CONCAT (t.name, ', ') as tag_names
@@ -111,7 +109,6 @@ FROM
     LEFT JOIN tags t ON nt.tag_id = t.id
 GROUP BY
     n.id,
-    n.name,
     n.content,
     n.created_at
 ORDER BY
@@ -119,6 +116,11 @@ ORDER BY
 
 -- Simple text search for now (FTS5 will be implemented manually)
 -- name: SearchNotesSimple :many
-SELECT * FROM note 
-WHERE name LIKE ? OR content LIKE ?
-ORDER BY created_at DESC;
+SELECT
+    *
+FROM
+    note
+WHERE
+    content LIKE ?
+ORDER BY
+    created_at DESC;

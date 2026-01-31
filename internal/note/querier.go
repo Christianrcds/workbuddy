@@ -12,7 +12,7 @@ type Querier interface {
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
 	// Notes
-	CreateNote(ctx context.Context, arg CreateNoteParams) (Note, error)
+	CreateNote(ctx context.Context, content string) (Note, error)
 	// Tags
 	CreateTag(ctx context.Context, name string) (Tag, error)
 	DeleteNote(ctx context.Context, id int64) error
@@ -26,7 +26,7 @@ type Querier interface {
 	ListTags(ctx context.Context) ([]Tag, error)
 	RemoveTagFromNote(ctx context.Context, arg RemoveTagFromNoteParams) error
 	// Simple text search for now (FTS5 will be implemented manually)
-	SearchNotesSimple(ctx context.Context, arg SearchNotesSimpleParams) ([]Note, error)
+	SearchNotesSimple(ctx context.Context, content string) ([]Note, error)
 	UpdateNote(ctx context.Context, arg UpdateNoteParams) (Note, error)
 }
 

@@ -51,8 +51,7 @@ to quickly create a Cobra application.`,
 		fmt.Printf("Found %d note(s):\n\n", len(notes))
 
 		for _, note := range notes {
-			fmt.Printf("Name: %s\n", note.Name)
-			fmt.Printf("Content: %s\n", note.Content)
+			fmt.Printf("Note: %s\n", note.Content)
 			fmt.Printf("Created: %s\n", note.CreatedAt.In(time.Local).Format(time.RFC1123))
 			fmt.Println("---")
 		}
@@ -62,5 +61,4 @@ to quickly create a Cobra application.`,
 
 func init() {
 	rootCmd.AddCommand(listCmd)
-
 }

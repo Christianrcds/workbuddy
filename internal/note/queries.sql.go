@@ -30,26 +30,16 @@ func (q *Queries) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) erro
 
 const createNote = `-- name: CreateNote :one
 INSERT INTO
-    note (name, content)
+    note (content)
 VALUES
-    (?, ?) RETURNING id, name, content, created_at
+    (?) RETURNING id, content, created_at
 `
 
-type CreateNoteParams struct {
-	Name    string `json:"name"`
-	Content string `json:"content"`
-}
-
 // Notes
-func (q *Queries) CreateNote(ctx context.Context, arg CreateNoteParams) (Note, error) {
-	row := q.db.QueryRowContext(ctx, createNote, arg.Name, arg.Content)
+func (q *Queries) CreateNote(ctx context.Context, content string) (Note, error) {
+	row := q.db.QueryRowContext(ctx, createNote, content)
 	var i Note
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Content,
-		&i.CreatedAt,
-	)
+	err := row.Scan(&i.ID, &i.Content, &i.CreatedAt)
 	return i, err
 }
 
@@ -92,7 +82,7 @@ func (q *Queries) DeleteTag(ctx context.Context, id int64) error {
 
 const getNote = `-- name: GetNote :one
 SELECT
-    id, name, content, created_at
+    id, content, created_at
 FROM
     note
 WHERE
@@ -102,12 +92,7 @@ WHERE
 func (q *Queries) GetNote(ctx context.Context, id int64) (Note, error) {
 	row := q.db.QueryRowContext(ctx, getNote, id)
 	var i Note
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Content,
-		&i.CreatedAt,
-	)
+	err := row.Scan(&i.ID, &i.Content, &i.CreatedAt)
 	return i, err
 }
 
@@ -120,7 +105,7 @@ FROM
 WHERE
     nt.note_id = ?
 ORDER BY
-    t.name
+    created_at desc
 `
 
 func (q *Queries) GetNoteTags(ctx context.Context, noteID int64) ([]Tag, error) {
@@ -148,7 +133,7 @@ func (q *Queries) GetNoteTags(ctx context.Context, noteID int64) ([]Tag, error) 
 
 const getNotesByTag = `-- name: GetNotesByTag :many
 SELECT
-    n.id, n.name, n.content, n.created_at
+    n.id, n.content, n.created_at
 FROM
     note n
     INNER JOIN note_tags nt ON n.id = nt.note_id
@@ -168,12 +153,7 @@ func (q *Queries) GetNotesByTag(ctx context.Context, name string) ([]Note, error
 	var items []Note
 	for rows.Next() {
 		var i Note
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Content,
-			&i.CreatedAt,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -190,7 +170,6 @@ func (q *Queries) GetNotesByTag(ctx context.Context, name string) ([]Note, error
 const getNotesWithTags = `-- name: GetNotesWithTags :many
 SELECT
     n.id,
-    n.name,
     n.content,
     n.created_at,
     GROUP_CONCAT (t.name, ', ') as tag_names
@@ -200,7 +179,6 @@ FROM
     LEFT JOIN tags t ON nt.tag_id = t.id
 GROUP BY
     n.id,
-    n.name,
     n.content,
     n.created_at
 ORDER BY
@@ -209,7 +187,6 @@ ORDER BY
 
 type GetNotesWithTagsRow struct {
 	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
 	TagNames  string    `json:"tag_names"`
@@ -226,7 +203,6 @@ func (q *Queries) GetNotesWithTags(ctx context.Context) ([]GetNotesWithTagsRow, 
 		var i GetNotesWithTagsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.Name,
 			&i.Content,
 			&i.CreatedAt,
 			&i.TagNames,
@@ -262,7 +238,7 @@ func (q *Queries) GetTag(ctx context.Context, name string) (Tag, error) {
 
 const listNotes = `-- name: ListNotes :many
 SELECT
-    id, name, content, created_at
+    id, content, created_at
 FROM
     note
 ORDER BY
@@ -278,12 +254,7 @@ func (q *Queries) ListNotes(ctx context.Context) ([]Note, error) {
 	var items []Note
 	for rows.Next() {
 		var i Note
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Content,
-			&i.CreatedAt,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -347,19 +318,19 @@ func (q *Queries) RemoveTagFromNote(ctx context.Context, arg RemoveTagFromNotePa
 }
 
 const searchNotesSimple = `-- name: SearchNotesSimple :many
-SELECT id, name, content, created_at FROM note 
-WHERE name LIKE ? OR content LIKE ?
-ORDER BY created_at DESC
+SELECT
+    id, content, created_at
+FROM
+    note
+WHERE
+    content LIKE ?
+ORDER BY
+    created_at DESC
 `
 
-type SearchNotesSimpleParams struct {
-	Name    string `json:"name"`
-	Content string `json:"content"`
-}
-
 // Simple text search for now (FTS5 will be implemented manually)
-func (q *Queries) SearchNotesSimple(ctx context.Context, arg SearchNotesSimpleParams) ([]Note, error) {
-	rows, err := q.db.QueryContext(ctx, searchNotesSimple, arg.Name, arg.Content)
+func (q *Queries) SearchNotesSimple(ctx context.Context, content string) ([]Note, error) {
+	rows, err := q.db.QueryContext(ctx, searchNotesSimple, content)
 	if err != nil {
 		return nil, err
 	}
@@ -367,12 +338,7 @@ func (q *Queries) SearchNotesSimple(ctx context.Context, arg SearchNotesSimplePa
 	var items []Note
 	for rows.Next() {
 		var i Note
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Content,
-			&i.CreatedAt,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -389,26 +355,19 @@ func (q *Queries) SearchNotesSimple(ctx context.Context, arg SearchNotesSimplePa
 const updateNote = `-- name: UpdateNote :one
 UPDATE note
 SET
-    name = ?,
     content = ?
 WHERE
-    id = ? RETURNING id, name, content, created_at
+    id = ? RETURNING id, content, created_at
 `
 
 type UpdateNoteParams struct {
-	Name    string `json:"name"`
 	Content string `json:"content"`
 	ID      int64  `json:"id"`
 }
 
 func (q *Queries) UpdateNote(ctx context.Context, arg UpdateNoteParams) (Note, error) {
-	row := q.db.QueryRowContext(ctx, updateNote, arg.Name, arg.Content, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateNote, arg.Content, arg.ID)
 	var i Note
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Content,
-		&i.CreatedAt,
-	)
+	err := row.Scan(&i.ID, &i.Content, &i.CreatedAt)
 	return i, err
 }

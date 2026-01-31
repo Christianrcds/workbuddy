@@ -25,7 +25,6 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("create called")
-		name, _ := cmd.Flags().GetString("name")
 		content, _ := cmd.Flags().GetString("content")
 		// tags, _ := cmd.Flags().GetStringSlice("tags")
 
@@ -38,10 +37,7 @@ to quickly create a Cobra application.`,
 		repo := note.NewRepository(db)
 		ctx := context.Background()
 
-		note, err := repo.CreateNote(ctx, note.CreateNoteParams{
-			Name:    name,
-			Content: content,
-		})
+		note, err := repo.CreateNote(ctx, content)
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating note: %v\n", err)
@@ -56,11 +52,9 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(createCmd)
 
-	createCmd.Flags().StringP("name", "n", "", "Note name (required)")
 	createCmd.Flags().StringP("content", "c", "", "Note content (required)")
 	createCmd.Flags().StringSliceP("tags", "t", []string{}, "Tags (comma-separated)")
 
-	createCmd.MarkFlagRequired("name")
 	createCmd.MarkFlagRequired("content")
 
 	// Cobra supports Persistent Flags which will work for this command

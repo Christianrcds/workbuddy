@@ -10,7 +10,6 @@ import (
 
 type Note struct {
 	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -21,7 +20,6 @@ type NoteTag struct {
 }
 
 type NotesFt struct {
-	Name    string `json:"name"`
 	Content string `json:"content"`
 }
 

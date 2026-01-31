@@ -4,9 +4,15 @@ Copyright © 2026 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"database/sql"
+	"fmt"
 	"os"
 
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/sqlite"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/spf13/cobra"
+	_ "modernc.org/sqlite"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -19,9 +25,10 @@ examples and usage of using your application. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+	// Run migrations before any command executes
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return runMigrations()
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -31,6 +38,33 @@ func Execute() {
 	if err != nil {
 		os.Exit(1)
 	}
+}
+
+// runMigrations applies all pending database migrations
+func runMigrations() error {
+	db, err := sql.Open("sqlite", "internal/database/workbuddy.db")
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+	defer db.Close()
+
+	driver, err := sqlite.WithInstance(db, &sqlite.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to create migration driver: %w", err)
+	}
+
+	m, err := migrate.NewWithDatabaseInstance("file://migrations", "sqlite", driver)
+	if err != nil {
+		return fmt.Errorf("failed to initialize migrator: %w", err)
+	}
+	defer m.Close()
+
+	// Run up migrations (ignore ErrNoChange which means migrations are already applied)
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("migration failed: %w", err)
+	}
+
+	return nil
 }
 
 func init() {
