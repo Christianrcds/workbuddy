@@ -36,7 +36,13 @@ func Execute() {
 
 // runMigrations applies all pending database migrations
 func runMigrations() error {
-	db, err := sql.Open("sqlite", "internal/database/workbuddy.db")
+	// Get database path from environment or use default
+	dbPath := os.Getenv("WORKBUDDY_DB")
+	if dbPath == "" {
+		dbPath = "internal/database/workbuddy.db"
+	}
+
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to open database: %w", err)
 	}
@@ -47,7 +53,13 @@ func runMigrations() error {
 		return fmt.Errorf("failed to create migration driver: %w", err)
 	}
 
-	m, err := migrate.NewWithDatabaseInstance("file://migrations", "sqlite", driver)
+	// Get migrations path from environment or use default
+	migrationsPath := os.Getenv("WORKBUDDY_MIGRATIONS")
+	if migrationsPath == "" {
+		migrationsPath = "file://migrations"
+	}
+
+	m, err := migrate.NewWithDatabaseInstance(migrationsPath, "sqlite", driver)
 	if err != nil {
 		return fmt.Errorf("failed to initialize migrator: %w", err)
 	}

@@ -3,6 +3,7 @@ package cmd
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 	"workbuddy/internal/note"
@@ -35,8 +36,14 @@ func wrapText(text string, width int) string {
 }
 
 // openDatabase opens the SQLite database
+// Uses WORKBUDDY_DB environment variable, falls back to default location
 func openDatabase() (*sql.DB, error) {
-	return sql.Open("sqlite", "internal/database/workbuddy.db")
+	dbPath := os.Getenv("WORKBUDDY_DB")
+	if dbPath == "" {
+		// Default: internal/database/workbuddy.db in project root
+		dbPath = "internal/database/workbuddy.db"
+	}
+	return sql.Open("sqlite", dbPath)
 }
 
 // NoteStyles holds all the lipgloss styles for displaying notes
