@@ -1,0 +1,73 @@
+/*
+Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+*/
+package cmd
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"os"
+	"workbuddy/internal/note"
+
+	"github.com/spf13/cobra"
+)
+
+// createCmd represents the create command
+var createCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create a new note",
+	Long: `A longer description that spans multiple lines and likely contains examples
+and usage of using your command. For example:
+
+Cobra is a CLI library for Go that empowers applications.
+This application is a tool to generate the needed files
+to quickly create a Cobra application.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("create called")
+		name, _ := cmd.Flags().GetString("name")
+		content, _ := cmd.Flags().GetString("content")
+		// tags, _ := cmd.Flags().GetStringSlice("tags")
+
+		db, err := sql.Open("sqlite", "internal/database/workbuddy.db")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
+			os.Exit(1)
+		}
+		defer db.Close()
+		repo := note.NewRepository(db)
+		ctx := context.Background()
+
+		note, err := repo.CreateNote(ctx, note.CreateNoteParams{
+			Name:    name,
+			Content: content,
+		})
+
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error creating note: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Created note with ID %d\n", note.ID)
+
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(createCmd)
+
+	createCmd.Flags().StringP("name", "n", "", "Note name (required)")
+	createCmd.Flags().StringP("content", "c", "", "Note content (required)")
+	createCmd.Flags().StringSliceP("tags", "t", []string{}, "Tags (comma-separated)")
+
+	createCmd.MarkFlagRequired("name")
+	createCmd.MarkFlagRequired("content")
+
+	// Cobra supports Persistent Flags which will work for this command
+	// and all subcommands, e.g.:
+	// createCmd.PersistentFlags().String("foo", "", "A help for foo")
+
+	// Cobra supports local flags which will only run when this command
+	// is called directly, e.g.:
+	// createCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}

@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"time"
 	"workbuddy/internal/note"
 
 	"github.com/spf13/cobra"
@@ -52,7 +53,7 @@ to quickly create a Cobra application.`,
 		for _, note := range notes {
 			fmt.Printf("Name: %s\n", note.Name)
 			fmt.Printf("Content: %s\n", note.Content)
-			fmt.Printf("Created: %s\n", note.CreatedAt)
+			fmt.Printf("Created: %s\n", note.CreatedAt.In(time.Local).Format(time.RFC1123))
 			fmt.Println("---")
 		}
 
