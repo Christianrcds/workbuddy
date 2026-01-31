@@ -17,6 +17,7 @@ type Repository interface {
 
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
+	GetNotesByTag(ctx context.Context, name string) ([]Note, error)
 }
 
 type sqliteRepo struct {
@@ -50,6 +51,10 @@ func (r *sqliteRepo) GetTag(ctx context.Context, name string) (Tag, error) {
 
 func (r *sqliteRepo) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error {
 	return r.queries.AddTagToNote(ctx, arg)
+}
+
+func (r *sqliteRepo) GetNotesByTag(ctx context.Context, name string) ([]Note, error) {
+	return r.queries.GetNotesByTag(ctx, name)
 }
 
 func NewRepository(db *sql.DB) Repository {

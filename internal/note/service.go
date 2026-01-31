@@ -54,6 +54,15 @@ func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags [
 	return createdNote, nil
 }
 
+func (s *Service) GetNotesByTag(ctx context.Context, tag string) ([]Note, error) {
+	notes, err := s.repo.GetNotesByTag(ctx, tag)
+	if err != nil {
+		return []Note{}, err
+	}
+
+	return notes, nil
+}
+
 func NewService(db *sql.DB) *Service {
 	return &Service{
 		db:   db,
