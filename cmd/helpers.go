@@ -57,12 +57,12 @@ func getNoteStyles() NoteStyles {
 			PaddingLeft(1),
 		ID: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")).
-			Italic(true),
+			Italic(true).
+			PaddingLeft(2),
 		Content: lipgloss.NewStyle().
 			PaddingLeft(2),
 		Date: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8")).
-			PaddingLeft(2),
+			Foreground(lipgloss.Color("8")),
 		Box: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("4")).
@@ -83,9 +83,9 @@ func displayNotes(notes []note.Note, title string) {
 
 		noteContent := fmt.Sprintf(
 			"%s\n%s\n%s",
-			styles.ID.Render(fmt.Sprintf("ID: %d", n.ID)),
-			styles.Content.Render(wrapText(n.Content, 70)),
 			styles.Date.Render(dateStr),
+			styles.Content.Render(wrapText(n.Content, 70)),
+			styles.ID.Render(fmt.Sprintf("ID: %d", n.ID)),
 		)
 
 		fmt.Println(styles.Box.Render(noteContent))
