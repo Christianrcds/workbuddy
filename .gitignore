@@ -52,7 +52,7 @@ logs/
 # Build artifacts
 /bin/
 /dist/
-
+/workbuddy
 
 #plans
 plan.md
