@@ -6,10 +6,17 @@ import (
 )
 
 type Repository interface {
-	CreateNote(ctx context.Context, params CreateNoteParams) (Note, error)
+	CreateNote(ctx context.Context, params string) (Note, error)
 	GetNote(ctx context.Context, id int64) (Note, error)
 	DeleteNote(ctx context.Context, id int64) error
 	ListNotes(ctx context.Context) ([]Note, error)
+
+	// Tags
+	CreateTag(ctx context.Context, name string) (Tag, error)
+	GetTag(ctx context.Context, name string) (Tag, error)
+
+	// Note Tags Relationships
+	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
 }
 
 type sqliteRepo struct {
@@ -17,7 +24,7 @@ type sqliteRepo struct {
 	db      *sql.DB
 }
 
-func (r *sqliteRepo) CreateNote(ctx context.Context, params CreateNoteParams) (Note, error) {
+func (r *sqliteRepo) CreateNote(ctx context.Context, params string) (Note, error) {
 	return r.queries.CreateNote(ctx, params)
 }
 
@@ -33,9 +40,28 @@ func (r *sqliteRepo) ListNotes(ctx context.Context) ([]Note, error) {
 	return r.queries.ListNotes(ctx)
 }
 
+func (r *sqliteRepo) CreateTag(ctx context.Context, name string) (Tag, error) {
+	return r.queries.CreateTag(ctx, name)
+}
+
+func (r *sqliteRepo) GetTag(ctx context.Context, name string) (Tag, error) {
+	return r.queries.GetTag(ctx, name)
+}
+
+func (r *sqliteRepo) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error {
+	return r.queries.AddTagToNote(ctx, arg)
+}
+
 func NewRepository(db *sql.DB) Repository {
 	return &sqliteRepo{
 		queries: New(db),
 		db:      db,
+	}
+}
+
+func NewRepositoryWithTx(tx *sql.Tx) Repository {
+	return &sqliteRepo{
+		queries: New(tx),
+		db:      nil,
 	}
 }
