@@ -64,4 +64,6 @@ ORDER BY
 SELECT
     *
 FROM
-    tags;
+    tags
+WHERE
+    name LIKE ?;

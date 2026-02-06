@@ -153,10 +153,12 @@ SELECT
     id, name, created_at
 FROM
     tags
+WHERE
+    name LIKE ?
 `
 
-func (q *Queries) ListTags(ctx context.Context) ([]Tag, error) {
-	rows, err := q.db.QueryContext(ctx, listTags)
+func (q *Queries) ListTags(ctx context.Context, name string) ([]Tag, error) {
+	rows, err := q.db.QueryContext(ctx, listTags, name)
 	if err != nil {
 		return nil, err
 	}

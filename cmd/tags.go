@@ -15,16 +15,11 @@ import (
 // tagsCmd represents the tags command
 var tagsCmd = &cobra.Command{
 	Use:   "tags",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "List all tags",
+	Long:  `List all tags.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("tags called")
-
+		content, _ := cmd.Flags().GetString("name")
+		pattern := "%" + content + "%"
 		db, err := openDatabase()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
@@ -36,7 +31,7 @@ to quickly create a Cobra application.`,
 
 		repo := note.NewRepository(db)
 
-		tags, err := repo.ListTags(ctx)
+		tags, err := repo.ListTags(ctx, pattern)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error listing tags: %v\n", err)
 			os.Exit(1)
@@ -53,16 +48,8 @@ to quickly create a Cobra application.`,
 	},
 }
 
+// Add functionality to search for tags by name (fuzzy search)
 func init() {
 	rootCmd.AddCommand(tagsCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// tagsCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// tagsCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	tagsCmd.Flags().StringP("name", "n", "", "Tag name to search for (fuzzy search)")
 }
