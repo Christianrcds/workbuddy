@@ -18,6 +18,7 @@ type Querier interface {
 	GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagWithLimitParams) ([]Note, error)
 	GetTag(ctx context.Context, name string) (Tag, error)
 	ListNotes(ctx context.Context) ([]Note, error)
+	ListTags(ctx context.Context) ([]Tag, error)
 	// Simple text search for now (FTS5 will be implemented manually)
 	SearchNotesSimple(ctx context.Context, content string) ([]Note, error)
 }

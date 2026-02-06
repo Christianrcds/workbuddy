@@ -148,6 +148,36 @@ func (q *Queries) ListNotes(ctx context.Context) ([]Note, error) {
 	return items, nil
 }
 
+const listTags = `-- name: ListTags :many
+SELECT
+    id, name, created_at
+FROM
+    tags
+`
+
+func (q *Queries) ListTags(ctx context.Context) ([]Tag, error) {
+	rows, err := q.db.QueryContext(ctx, listTags)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Tag
+	for rows.Next() {
+		var i Tag
+		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchNotesSimple = `-- name: SearchNotesSimple :many
 SELECT
     id, content, created_at

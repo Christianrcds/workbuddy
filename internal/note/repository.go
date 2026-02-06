@@ -12,6 +12,7 @@ type Repository interface {
 	// Tags
 	CreateTag(ctx context.Context, name string) (Tag, error)
 	GetTag(ctx context.Context, name string) (Tag, error)
+	ListTags(ctx context.Context) ([]Tag, error)
 
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
@@ -45,6 +46,10 @@ func (r *sqliteRepo) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) e
 
 func (r *sqliteRepo) GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagWithLimitParams) ([]Note, error) {
 	return r.queries.GetNotesByTagWithLimit(ctx, arg)
+}
+
+func (r *sqliteRepo) ListTags(ctx context.Context) ([]Tag, error) {
+	return r.queries.ListTags(ctx)
 }
 
 func NewRepository(db *sql.DB) Repository {

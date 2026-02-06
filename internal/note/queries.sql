@@ -59,3 +59,9 @@ WHERE
     content LIKE ?
 ORDER BY
     created_at DESC;
+
+-- name: ListTags :many
+SELECT
+    *
+FROM
+    tags;
