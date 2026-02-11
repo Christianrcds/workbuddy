@@ -127,7 +127,7 @@ workbuddy list
 ### List all tags
 
 ```bash
-workbuddy tag list
+workbuddy tags
 ```
 
 ### Filter notes by tag
