@@ -1,21 +1,25 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/sqlite"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/spf13/cobra"
 	_ "modernc.org/sqlite"
 )
 
-// rootCmd represents the base command when called without any subcommands
+var migrationsFS fs.FS
+
+func SetMigrations(fsys fs.FS) {
+	migrationsFS = fsys
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "workbuddy",
 	Short: "A note-taking application with easy search and creation",
@@ -25,8 +29,6 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -34,12 +36,10 @@ func Execute() {
 	}
 }
 
-// runMigrations applies all pending database migrations
 func runMigrations() error {
-	// Get database path from environment or use default
-	dbPath := os.Getenv("WORKBUDDY_DB")
-	if dbPath == "" {
-		dbPath = "internal/database/workbuddy.db"
+	dbPath := getDBPath()
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+		return fmt.Errorf("failed to create database directory: %w", err)
 	}
 
 	db, err := sql.Open("sqlite", dbPath)
@@ -53,19 +53,17 @@ func runMigrations() error {
 		return fmt.Errorf("failed to create migration driver: %w", err)
 	}
 
-	// Get migrations path from environment or use default
-	migrationsPath := os.Getenv("WORKBUDDY_MIGRATIONS")
-	if migrationsPath == "" {
-		migrationsPath = "file://migrations"
+	sourceDriver, err := iofs.New(migrationsFS, "migrations")
+	if err != nil {
+		return fmt.Errorf("failed to create migration source: %w", err)
 	}
 
-	m, err := migrate.NewWithDatabaseInstance(migrationsPath, "sqlite", driver)
+	m, err := migrate.NewWithInstance("iofs", sourceDriver, "sqlite", driver)
 	if err != nil {
 		return fmt.Errorf("failed to initialize migrator: %w", err)
 	}
 	defer m.Close()
 
-	// Run up migrations (ignore ErrNoChange which means migrations are already applied)
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("migration failed: %w", err)
 	}
@@ -74,13 +72,5 @@ func runMigrations() error {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.workbuddy.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
 	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
