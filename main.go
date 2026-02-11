@@ -1,10 +1,14 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-*/
 package main
 
-import "workbuddy/cmd"
+import (
+	"embed"
+	"workbuddy/cmd"
+)
+
+//go:embed migrations
+var migrationsFS embed.FS
 
 func main() {
+	cmd.SetMigrations(migrationsFS)
 	cmd.Execute()
 }

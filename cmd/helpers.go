@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"workbuddy/internal/note"
@@ -35,13 +36,21 @@ func wrapText(text string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-// openDatabase opens the SQLite database
-// Uses WORKBUDDY_DB environment variable, falls back to default location
+func getDBPath() string {
+	if p := os.Getenv("WORKBUDDY_DB"); p != "" {
+		return p
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "workbuddy.db"
+	}
+	return filepath.Join(dir, "workbuddy", "workbuddy.db")
+}
+
 func openDatabase() (*sql.DB, error) {
-	dbPath := os.Getenv("WORKBUDDY_DB")
-	if dbPath == "" {
-		// Default: internal/database/workbuddy.db in project root
-		dbPath = "internal/database/workbuddy.db"
+	dbPath := getDBPath()
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 	return sql.Open("sqlite", dbPath)
 }

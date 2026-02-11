@@ -5,7 +5,6 @@ package cmd
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"workbuddy/internal/note"
@@ -25,9 +24,8 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		content, _ := cmd.Flags().GetString("content")
-		// tags, _ := cmd.Flags().GetStringSlice("tags")
 
-		db, err := sql.Open("sqlite", "internal/database/workbuddy.db")
+		db, err := openDatabase()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
 			os.Exit(1)
