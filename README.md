@@ -121,7 +121,7 @@ workbuddy nt -t tag1,tag2 -c "Note content"
 ### List all notes
 
 ```bash
-workbuddy note list
+workbuddy list
 ```
 
 ### List all tags
@@ -132,8 +132,16 @@ workbuddy tag list
 
 ### Filter notes by tag
 
+This will filter by default notes with the tag `work` and return 1 result.
+
 ```bash
 workbuddy search -t "work"
+```
+
+To return more results, use the `-l` flag:
+
+```bash
+workbuddy search -t "work" -l 10
 ```
 
 ## Configuration
@@ -155,32 +163,6 @@ WORKBUDDY_DB="/path/to/my/notes.db" workbuddy note list
 export WORKBUDDY_DB="$HOME/Dropbox/notes/workbuddy.db"
 ```
 
-## Development
-
-### Database Migrations
-
-Migrations are embedded in the binary and run automatically on startup. The migration files are located in the `migrations/` directory.
-
-To create a new migration:
-
-```bash
-migrate create -ext sql -dir migrations -seq description_of_change
-```
-
-**Note:** Migrations are bundled into the binary using Go's `embed` package, so they don't need to be distributed separately.
-
-### Project Structure
-
-```
-cmd/           → CLI commands (Cobra)
-internal/note/ → Business logic and data access
-  ├─ service.go    → Business logic layer
-  ├─ repository.go → Data access layer
-  └─ queries.sql   → SQL queries (for sqlc)
-migrations/    → Database schema versions (embedded in binary)
-main.go        → Application entry point with embedded migrations
-```
-
 ## Technologies
 
 - **Go 1.25.6** - Programming language
@@ -189,30 +171,6 @@ main.go        → Application entry point with embedded migrations
 - **golang-migrate** - Database migrations
 - **Cobra** - CLI framework
 - **lipgloss** - Terminal styling
-
-## Uninstalling
-
-### If installed with `go install`:
-
-```bash
-rm $(go env GOPATH)/bin/workbuddy
-```
-
-### If installed to `/usr/local/bin`:
-
-```bash
-sudo rm /usr/local/bin/workbuddy
-```
-
-### Remove data (optional):
-
-```bash
-rm -rf ~/.config/workbuddy
-```
-
-## License
-
-See LICENSE file for details.
 
 ## Contributing
 
