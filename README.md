@@ -106,6 +106,18 @@ No manual setup required! 🎉
 workbuddy nt -t tag_name -c "Note content"
 ```
 
+### Create a task (todo item)
+
+```bash
+workbuddy create -c "Buy milk" --task
+```
+
+With tags:
+
+```bash
+workbuddy nt -c "Send report" -t work,urgent --task
+```
+
 ### Create a note with multiple tags
 
 ```bash
@@ -123,6 +135,8 @@ workbuddy nt -t tag1,tag2 -c "Note content"
 ```bash
 workbuddy list
 ```
+
+Tasks show status indicators `[ ]` or `[x]` only when created with `--task`.
 
 ### List all tags
 
@@ -143,6 +157,20 @@ To return more results, use the `-l` flag:
 ```bash
 workbuddy search -t "work" -l 10
 ```
+
+### Mark task as completed
+
+```bash
+workbuddy check <id>
+```
+
+### Remove a note or task
+
+```bash
+workbuddy remove <id>
+```
+
+You will be asked for confirmation before deletion.
 
 ## Configuration
 

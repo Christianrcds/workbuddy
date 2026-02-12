@@ -12,15 +12,21 @@ type Querier interface {
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
 	// Notes
-	CreateNote(ctx context.Context, content string) (Note, error)
+	CreateNote(ctx context.Context, arg CreateNoteParams) (Note, error)
 	// Tags
 	CreateTag(ctx context.Context, name string) (Tag, error)
+	// Notes
+	DeleteNoteByID(ctx context.Context, id int64) (int64, error)
+	DeleteTaskByID(ctx context.Context, id int64) (int64, error)
 	GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagWithLimitParams) ([]Note, error)
 	GetTag(ctx context.Context, name string) (Tag, error)
 	ListNotes(ctx context.Context) ([]Note, error)
 	ListTags(ctx context.Context, name string) ([]Tag, error)
+	ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error)
 	// Simple text search for now (FTS5 will be implemented manually)
 	SearchNotesSimple(ctx context.Context, content string) ([]Note, error)
+	// Notes
+	MarkNoteCompleted(ctx context.Context, id int64) (int64, error)
 }
 
 var _ Querier = (*Queries)(nil)
