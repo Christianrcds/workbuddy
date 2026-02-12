@@ -5,13 +5,16 @@
 package note
 
 import (
+	"database/sql"
 	"time"
 )
 
 type Note struct {
-	ID        int64     `json:"id"`
-	Content   string    `json:"content"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          int64        `json:"id"`
+	Content     string       `json:"content"`
+	CreatedAt   time.Time    `json:"created_at"`
+	CompletedAt sql.NullTime `json:"completed_at"`
+	IsTask      bool         `json:"is_task"`
 }
 
 type NoteTag struct {

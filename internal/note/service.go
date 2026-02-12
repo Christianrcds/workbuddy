@@ -11,7 +11,7 @@ type Service struct {
 	repo Repository
 }
 
-func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags []string) (Note, error) {
+func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags []string, isTask bool) (Note, error) {
 	trx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Note{}, err
@@ -20,7 +20,7 @@ func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags [
 
 	repo := NewRepositoryWithTx(trx)
 
-	createdNote, err := repo.CreateNote(ctx, content)
+	createdNote, err := repo.CreateNote(ctx, CreateNoteParams{Content: content, IsTask: isTask})
 
 	if err != nil {
 		return Note{}, err

@@ -44,7 +44,14 @@ var searchCmd = &cobra.Command{
 			return
 		}
 
-		displayNotes(notes, fmt.Sprintf("🔍 Search Results: '%s' (%d found)", tag, len(notes)))
+		repo := note.NewRepository(db)
+		tagsByNoteID, err := buildTagsByNoteID(ctx, repo, notes)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading tags: %v\n", err)
+			os.Exit(1)
+		}
+
+		displayNotes(notes, tagsByNoteID, fmt.Sprintf("🔍 Search Results: '%s' (%d found)", tag, len(notes)))
 	},
 }
 

@@ -29,17 +29,22 @@ func (q *Queries) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) erro
 
 const createNote = `-- name: CreateNote :one
 INSERT INTO
-    note (content)
+	note (content, is_task)
 VALUES
-    (?) RETURNING id, content, created_at
+	(?, ?) RETURNING id, content, created_at, completed_at, is_task
 `
 
 // Notes
-func (q *Queries) CreateNote(ctx context.Context, content string) (Note, error) {
-	row := q.db.QueryRowContext(ctx, createNote, content)
+func (q *Queries) CreateNote(ctx context.Context, arg CreateNoteParams) (Note, error) {
+	row := q.db.QueryRowContext(ctx, createNote, arg.Content, arg.IsTask)
 	var i Note
-	err := row.Scan(&i.ID, &i.Content, &i.CreatedAt)
+	err := row.Scan(&i.ID, &i.Content, &i.CreatedAt, &i.CompletedAt, &i.IsTask)
 	return i, err
+}
+
+type CreateNoteParams struct {
+	Content string `json:"content"`
+	IsTask  bool   `json:"is_task"`
 }
 
 const createTag = `-- name: CreateTag :one
@@ -59,7 +64,7 @@ func (q *Queries) CreateTag(ctx context.Context, name string) (Tag, error) {
 
 const getNotesByTagWithLimit = `-- name: GetNotesByTagWithLimit :many
 SELECT
-    n.id, n.content, n.created_at
+	n.id, n.content, n.created_at, n.completed_at, n.is_task
 FROM
     note n
     INNER JOIN note_tags nt ON n.id = nt.note_id
@@ -86,7 +91,7 @@ func (q *Queries) GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagW
 	var items []Note
 	for rows.Next() {
 		var i Note
-		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt); err != nil {
+		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt, &i.CompletedAt, &i.IsTask); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -118,7 +123,7 @@ func (q *Queries) GetTag(ctx context.Context, name string) (Tag, error) {
 
 const listNotes = `-- name: ListNotes :many
 SELECT
-    id, content, created_at
+	id, content, created_at, completed_at, is_task
 FROM
     note
 ORDER BY
@@ -134,7 +139,7 @@ func (q *Queries) ListNotes(ctx context.Context) ([]Note, error) {
 	var items []Note
 	for rows.Next() {
 		var i Note
-		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt); err != nil {
+		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt, &i.CompletedAt, &i.IsTask); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -180,9 +185,44 @@ func (q *Queries) ListTags(ctx context.Context, name string) ([]Tag, error) {
 	return items, nil
 }
 
+const listTagsByNoteID = `-- name: ListTagsByNoteID :many
+SELECT
+    t.name
+FROM
+    tags t
+    INNER JOIN note_tags nt ON t.id = nt.tag_id
+WHERE
+    nt.note_id = ?
+ORDER BY
+    t.name
+`
+
+func (q *Queries) ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listTagsByNoteID, noteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchNotesSimple = `-- name: SearchNotesSimple :many
 SELECT
-    id, content, created_at
+	id, content, created_at, completed_at, is_task
 FROM
     note
 WHERE
@@ -201,7 +241,7 @@ func (q *Queries) SearchNotesSimple(ctx context.Context, content string) ([]Note
 	var items []Note
 	for rows.Next() {
 		var i Note
-		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt); err != nil {
+		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt, &i.CompletedAt, &i.IsTask); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -213,4 +253,53 @@ func (q *Queries) SearchNotesSimple(ctx context.Context, content string) ([]Note
 		return nil, err
 	}
 	return items, nil
+}
+
+const markNoteCompleted = `-- name: MarkNoteCompleted :execrows
+UPDATE
+    note
+SET
+    completed_at = CURRENT_TIMESTAMP
+WHERE
+    id = ?
+    AND completed_at IS NULL
+`
+
+func (q *Queries) MarkNoteCompleted(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markNoteCompleted, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteTaskByID = `-- name: DeleteTaskByID :execrows
+DELETE FROM
+    note
+WHERE
+    id = ?
+    AND is_task = 1
+`
+
+func (q *Queries) DeleteTaskByID(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteTaskByID, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteNoteByID = `-- name: DeleteNoteByID :execrows
+DELETE FROM
+    note
+WHERE
+    id = ?
+`
+
+func (q *Queries) DeleteNoteByID(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteNoteByID, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

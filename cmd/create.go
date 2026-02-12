@@ -24,6 +24,7 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		content, _ := cmd.Flags().GetString("content")
+		isTask, _ := cmd.Flags().GetBool("task")
 
 		db, err := openDatabase()
 		if err != nil {
@@ -34,14 +35,18 @@ to quickly create a Cobra application.`,
 		repo := note.NewRepository(db)
 		ctx := context.Background()
 
-		note, err := repo.CreateNote(ctx, content)
+		note, err := repo.CreateNote(ctx, note.CreateNoteParams{Content: content, IsTask: isTask})
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating note: %v\n", err)
 			os.Exit(1)
 		}
 
-		fmt.Printf("Created note with ID %d\n", note.ID)
+		label := "note"
+		if isTask {
+			label = "task"
+		}
+		fmt.Printf("Created %s with ID %d\n", label, note.ID)
 
 	},
 }
@@ -50,6 +55,7 @@ func init() {
 	rootCmd.AddCommand(createCmd)
 
 	createCmd.Flags().StringP("content", "c", "", "Note content (required)")
+	createCmd.Flags().BoolP("task", "k", false, "Create as a task (shows pending/checked in list)")
 	createCmd.Flags().StringSliceP("tags", "t", []string{}, "Tags (comma-separated)")
 
 	createCmd.MarkFlagRequired("content")

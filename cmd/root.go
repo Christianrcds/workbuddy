@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"io/fs"
@@ -66,6 +67,49 @@ func runMigrations() error {
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return fmt.Errorf("migration failed: %w", err)
+	}
+
+	if err := ensureNoteColumns(db); err != nil {
+		return fmt.Errorf("failed to ensure note columns: %w", err)
+	}
+
+	return nil
+}
+
+func ensureNoteColumns(db *sql.DB) error {
+	ctx := context.Background()
+	rows, err := db.QueryContext(ctx, "PRAGMA table_info(note);")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	columns := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name string
+		var colType string
+		var notNull int
+		var defaultVal sql.NullString
+		var pk int
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultVal, &pk); err != nil {
+			return err
+		}
+		columns[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if !columns["completed_at"] {
+		if _, err := db.ExecContext(ctx, "ALTER TABLE note ADD COLUMN completed_at DATETIME;"); err != nil {
+			return err
+		}
+	}
+	if !columns["is_task"] {
+		if _, err := db.ExecContext(ctx, "ALTER TABLE note ADD COLUMN is_task INTEGER NOT NULL DEFAULT 0;"); err != nil {
+			return err
+		}
 	}
 
 	return nil

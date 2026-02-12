@@ -44,7 +44,13 @@ to quickly create a Cobra application.`,
 			return
 		}
 
-		displayNotes(notes, fmt.Sprintf("📝 Notes (%d)", len(notes)))
+		tagsByNoteID, err := buildTagsByNoteID(ctx, repo, notes)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error loading tags: %v\n", err)
+			os.Exit(1)
+		}
+
+		displayNotes(notes, tagsByNoteID, fmt.Sprintf("📝 Notes (%d)", len(notes)))
 	},
 }
 

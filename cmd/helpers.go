@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -57,11 +58,16 @@ func openDatabase() (*sql.DB, error) {
 
 // NoteStyles holds all the lipgloss styles for displaying notes
 type NoteStyles struct {
-	Header  lipgloss.Style
-	ID      lipgloss.Style
-	Content lipgloss.Style
-	Date    lipgloss.Style
-	Box     lipgloss.Style
+	Header        lipgloss.Style
+	ID            lipgloss.Style
+	Content       lipgloss.Style
+	Date          lipgloss.Style
+	Status        lipgloss.Style
+	StatusDone    lipgloss.Style
+	StatusPending lipgloss.Style
+	Tags          lipgloss.Style
+	TagsDone      lipgloss.Style
+	Box           lipgloss.Style
 }
 
 // getNoteStyles returns configured styles for displaying notes
@@ -79,6 +85,15 @@ func getNoteStyles() NoteStyles {
 			PaddingLeft(2),
 		Date: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("8")),
+		Status: lipgloss.NewStyle(),
+		StatusDone: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("10")),
+		StatusPending: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("11")),
+		Tags: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("14")),
+		TagsDone: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8")),
 		Box: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("4")).
@@ -89,21 +104,77 @@ func getNoteStyles() NoteStyles {
 }
 
 // displayNotes displays a slice of notes with pretty formatting
-func displayNotes(notes []note.Note, title string) {
+func displayNotes(notes []note.Note, tagsByNoteID map[int64][]string, title string) {
 	styles := getNoteStyles()
 
 	fmt.Printf("\n%s\n", styles.Header.Render(title))
 
 	for _, n := range notes {
 		dateStr := n.CreatedAt.In(time.Local).Format("Mon, 02 Jan 2006 15:04")
-
-		noteContent := fmt.Sprintf(
-			"%s\n%s\n%s",
-			styles.Date.Render(dateStr),
-			styles.Content.Render(wrapText(n.Content, 70)),
+		statusText := ""
+		statusStyle := styles.StatusPending
+		if n.IsTask {
+			statusText = "[ ] Pending"
+			if n.CompletedAt.Valid {
+				completedAt := n.CompletedAt.Time.In(time.Local).Format("Mon, 02 Jan 2006 15:04")
+				statusText = fmt.Sprintf("[x] Completed: %s", completedAt)
+				statusStyle = styles.StatusDone
+			}
+		}
+		noteLines := []string{styles.Date.Render(dateStr)}
+		if n.IsTask {
+			noteLines = append(noteLines, statusStyle.Render(statusText))
+		}
+		if tagsLine := renderTagsLine(tagsByNoteID[n.ID], n.CompletedAt.Valid, styles); tagsLine != "" {
+			noteLines = append(noteLines, tagsLine)
+		}
+		noteLines = append(
+			noteLines,
+			renderDescriptionLine(n.Content, n.CompletedAt.Valid, styles),
 			styles.ID.Render(fmt.Sprintf("ID: %d", n.ID)),
 		)
 
+		noteContent := strings.Join(noteLines, "\n")
+
 		fmt.Println(styles.Box.Render(noteContent))
 	}
+}
+
+func renderTagsLine(tags []string, completed bool, styles NoteStyles) string {
+	label := styles.Tags
+	if completed {
+		label = styles.TagsDone
+	}
+
+	if len(tags) == 0 {
+		return ""
+	}
+
+	return label.Render(fmt.Sprintf("Tags: %s", strings.Join(tags, ", ")))
+}
+
+func renderDescriptionLine(content string, completed bool, styles NoteStyles) string {
+	label := styles.Tags
+	if completed {
+		label = styles.TagsDone
+	}
+
+	wrapped := wrapText(content, 70)
+	wrapped = strings.ReplaceAll(wrapped, "\n", "\n  ")
+
+	return label.Render("Description: ") + styles.Content.Render(wrapped)
+}
+
+func buildTagsByNoteID(ctx context.Context, repo note.Repository, notes []note.Note) (map[int64][]string, error) {
+	tagsByNoteID := make(map[int64][]string, len(notes))
+	for _, n := range notes {
+		tags, err := repo.ListTagsByNoteID(ctx, n.ID)
+		if err != nil {
+			return nil, err
+		}
+		if len(tags) > 0 {
+			tagsByNoteID[n.ID] = tags
+		}
+	}
+	return tagsByNoteID, nil
 }

@@ -25,6 +25,7 @@ var ntCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		content, _ := cmd.Flags().GetString("content")
 		tags, _ := cmd.Flags().GetStringSlice("tags")
+		isTask, _ := cmd.Flags().GetBool("task")
 
 		db, err := openDatabase()
 		if err != nil {
@@ -36,12 +37,16 @@ var ntCmd = &cobra.Command{
 		ctx := context.Background()
 		service := note.NewService(db)
 
-		note, err := service.CreateNoteWithTags(ctx, content, tags)
+		note, err := service.CreateNoteWithTags(ctx, content, tags, isTask)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating note: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Created note with ID %d\n", note.ID)
+		label := "note"
+		if isTask {
+			label = "task"
+		}
+		fmt.Printf("Created %s with ID %d\n", label, note.ID)
 	},
 }
 
@@ -50,6 +55,7 @@ func init() {
 
 	ntCmd.Flags().StringP("content", "c", "", "Note content (required)")
 	ntCmd.Flags().StringSliceP("tags", "t", []string{}, "Tags (comma-separated)")
+	ntCmd.Flags().BoolP("task", "k", false, "Create as a task (shows pending/checked in list)")
 
 	ntCmd.MarkFlagRequired("content")
 }
