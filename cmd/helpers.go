@@ -11,6 +11,7 @@ import (
 	"workbuddy/internal/note"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	_ "modernc.org/sqlite"
 )
 
@@ -101,6 +102,120 @@ func getNoteStyles() NoteStyles {
 			PaddingRight(1).
 			MarginBottom(1),
 	}
+}
+
+func truncateString(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen]) + "..."
+}
+
+// BorderType define o tipo de borda da tabela
+type BorderType int
+
+const (
+	BorderTypeNormal BorderType = iota
+	BorderTypeASCII
+	BorderTypeMarkdown
+)
+
+// getBorder retorna o lipgloss.Border baseado no tipo
+// ✅ Boa prática: centralizar configuração de bordas em uma função
+func getBorder(bt BorderType) lipgloss.Border {
+	switch bt {
+	case BorderTypeASCII:
+		return lipgloss.ASCIIBorder()
+	case BorderTypeMarkdown:
+		return lipgloss.MarkdownBorder()
+	default:
+		return lipgloss.NormalBorder()
+	}
+}
+
+// displayNotesAsTable renderiza notas em formato de tabela bonita com lipgloss/table
+// borderType: especifica o tipo de borda (Normal, ASCII, Markdown)
+func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, title string) {
+	// Define cores
+	purple := lipgloss.Color("99")
+	gray := lipgloss.Color("245")
+	lightGray := lipgloss.Color("241")
+
+	// Define estilos para cabeçalho
+	headerStyle := lipgloss.NewStyle().
+		Foreground(purple).
+		Bold(true).
+		Align(lipgloss.Center).
+		Padding(0, 1).
+		Width(14)
+
+	// Estilos para célula comum
+	cellStyle := lipgloss.NewStyle().
+		Padding(0, 1).
+		Width(14)
+
+	oddRowStyle := cellStyle.Foreground(gray)
+	evenRowStyle := cellStyle.Foreground(lightGray)
+
+	// Cria array 2D de strings (rows)
+	// ⚠️ IMPORTANTE: [][]string, não []string!
+	var rows [][]string
+
+	for _, n := range notes {
+
+		// Formata data
+		dateStr := n.CreatedAt.In(time.Local).Format("02/01 15:04")
+
+		// Determina status
+		statusStr := "-"
+		if n.IsTask {
+			if n.CompletedAt.Valid {
+				statusStr = "✅ Done"
+			} else {
+				statusStr = "⏳ Pending"
+			}
+		}
+
+		descStr := n.Content
+
+		// Formata tags
+		tagsStr := "-"
+		if tags, ok := tagsByNoteID[n.ID]; ok && len(tags) > 0 {
+			tagsStr = strings.Join(tags, ",")
+			tagsStr = truncateString(tagsStr, 15)
+		}
+
+		// ID
+		idStr := fmt.Sprintf("%d", n.ID)
+
+		// Adiciona row como []string
+		rows = append(rows, []string{dateStr, statusStr, descStr, tagsStr, idStr})
+	}
+
+	// Cria tabela com StyleFunc
+	// ⚠️ IMPORTANTE: Rows ANTES de Offset! Ordem importa!
+	// ⚠️ IMPORTANTE: StyleFunc é uma função de callback que recebe (row, col)
+	t := table.New().
+		BorderStyle(lipgloss.NewStyle().Foreground(purple)).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			// HeaderRow é uma constante especial do package table
+			switch {
+			case row == table.HeaderRow:
+				return headerStyle
+			case row%2 == 0:
+				return evenRowStyle
+			default:
+				return oddRowStyle
+			}
+		}).
+		Headers("Data", "Status", "Descrição", "Tags", "ID").
+		Rows(rows...) // ✅ Rows VEM PRIMEIRO
+
+	// Imprime título + tabela
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
+	fmt.Printf("\n%s\n", titleStyle.Render(title))
+	fmt.Println(t.Render())
 }
 
 // displayNotes displays a slice of notes with pretty formatting
