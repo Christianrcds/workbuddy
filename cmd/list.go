@@ -28,7 +28,11 @@ var listCmd = &cobra.Command{
 
 		repo := note.NewRepository(db)
 		ctx := context.Background()
-		notesTypes := args[0]
+		var notesTypes string
+
+		if len(args) > 0 {
+			notesTypes = args[0]
+		}
 
 		var notes []note.Note
 		if len(notesTypes) == 0 {

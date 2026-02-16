@@ -162,6 +162,11 @@ func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, tit
 	// ⚠️ IMPORTANTE: [][]string, não []string!
 	var rows [][]string
 
+	showStatus := false
+	if len(notes) > 0 && notes[0].IsTask {
+		showStatus = true
+	}
+
 	for _, n := range notes {
 
 		// Formata data
@@ -190,12 +195,24 @@ func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, tit
 		idStr := fmt.Sprintf("%d", n.ID)
 
 		// Adiciona row como []string
-		rows = append(rows, []string{dateStr, statusStr, descStr, tagsStr, idStr})
+		if showStatus {
+			rows = append(rows, []string{idStr, dateStr, descStr, tagsStr, statusStr})
+		} else {
+			rows = append(rows, []string{idStr, dateStr, descStr, tagsStr})
+		}
 	}
 
 	// Cria tabela com StyleFunc
 	// ⚠️ IMPORTANTE: Rows ANTES de Offset! Ordem importa!
 	// ⚠️ IMPORTANTE: StyleFunc é uma função de callback que recebe (row, col)
+
+	var headers []string
+	if showStatus {
+		headers = []string{"ID", "Date", "Description", "Tags", "Status"}
+	} else {
+		headers = []string{"ID", "Date", "Description", "Tags"}
+	}
+
 	t := table.New().
 		BorderStyle(lipgloss.NewStyle().Foreground(purple)).
 		StyleFunc(func(row, col int) lipgloss.Style {
@@ -209,7 +226,7 @@ func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, tit
 				return oddRowStyle
 			}
 		}).
-		Headers("Data", "Status", "Descrição", "Tags", "ID").
+		Headers(headers...).
 		Rows(rows...) // ✅ Rows VEM PRIMEIRO
 
 	// Imprime título + tabela
