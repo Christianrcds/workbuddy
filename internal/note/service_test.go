@@ -129,7 +129,7 @@ type mockRepositoryWithNotes struct {
 	errorToReturn error
 }
 
-func (m *mockRepositoryWithNotes) CreateNote(ctx context.Context, content string) (Note, error) {
+func (m *mockRepositoryWithNotes) CreateNote(ctx context.Context, content CreateNoteParams) (Note, error) {
 	return Note{}, nil
 }
 
@@ -156,7 +156,27 @@ func (m *mockRepositoryWithNotes) GetNotesByTagWithLimit(ctx context.Context, ar
 	return m.notesToReturn, nil
 }
 
+func (m *mockRepositoryWithNotes) DeleteNoteByID(ctx context.Context, id int64) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockRepositoryWithNotes) DeleteTaskByID(ctx context.Context, id int64) (int64, error) {
+	return 0, nil
+}
+
 func (m *mockRepositoryWithNotes) ListTags(ctx context.Context, pattern string) ([]Tag, error) {
+	return nil, nil
+}
+
+func (m *mockRepositoryWithNotes) ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockRepositoryWithNotes) MarkNoteCompleted(ctx context.Context, id int64) (int64, error) {
+	return 0, nil
+}
+
+func (m *mockRepositoryWithNotes) ListTasks(ctx context.Context) ([]Note, error) {
 	return nil, nil
 }
 
