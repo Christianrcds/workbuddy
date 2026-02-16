@@ -221,7 +221,7 @@ func displayNotes(notes []note.Note, tagsByNoteID map[int64][]string, title stri
 	fmt.Printf("\n%s\n", styles.Header.Render(title))
 
 	for _, n := range notes {
-		dateStr := n.CreatedAt.In(time.Local).Format("Mon, 02 Jan 2006 15:04")
+		dateStr := n.CreatedAt.In(time.Local).Format("Mon, 02 Jan 2006 15:04") + styles.ID.Render(fmt.Sprintf("ID: %d", n.ID))
 		statusText := ""
 		statusStyle := styles.StatusPending
 		if n.IsTask {
@@ -236,15 +236,14 @@ func displayNotes(notes []note.Note, tagsByNoteID map[int64][]string, title stri
 		if n.IsTask {
 			noteLines = append(noteLines, statusStyle.Render(statusText))
 		}
-		if tagsLine := renderTagsLine(tagsByNoteID[n.ID], n.CompletedAt.Valid, styles); tagsLine != "" {
-			noteLines = append(noteLines, tagsLine)
-		}
+
 		noteLines = append(
 			noteLines,
 			renderDescriptionLine(n.Content, n.CompletedAt.Valid, styles),
-			styles.ID.Render(fmt.Sprintf("ID: %d", n.ID)),
 		)
-
+		if tagsLine := renderTagsLine(tagsByNoteID[n.ID], n.CompletedAt.Valid, styles); tagsLine != "" {
+			noteLines = append(noteLines, tagsLine)
+		}
 		noteContent := strings.Join(noteLines, "\n")
 
 		fmt.Println(styles.Box.Render(noteContent))
@@ -273,7 +272,7 @@ func renderDescriptionLine(content string, completed bool, styles NoteStyles) st
 	wrapped := wrapText(content, 70)
 	wrapped = strings.ReplaceAll(wrapped, "\n", "\n  ")
 
-	return label.Render("Description: ") + styles.Content.Render(wrapped)
+	return label.Render("Content: ") + styles.Content.Render(wrapped)
 }
 
 func buildTagsByNoteID(ctx context.Context, repo note.Repository, notes []note.Note) (map[int64][]string, error) {
