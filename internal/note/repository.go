@@ -10,6 +10,7 @@ type Repository interface {
 	DeleteNoteByID(ctx context.Context, id int64) (int64, error)
 	DeleteTaskByID(ctx context.Context, id int64) (int64, error)
 	ListNotes(ctx context.Context) ([]Note, error)
+	ListTasks(ctx context.Context) ([]Note, error)
 	MarkNoteCompleted(ctx context.Context, id int64) (int64, error)
 
 	// Tags
@@ -70,6 +71,10 @@ func (r *sqliteRepo) ListTags(ctx context.Context, name string) ([]Tag, error) {
 
 func (r *sqliteRepo) ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error) {
 	return r.queries.ListTagsByNoteID(ctx, noteID)
+}
+
+func (r *sqliteRepo) ListTasks(ctx context.Context) ([]Note, error) {
+	return r.queries.ListTasks(ctx)
 }
 
 func NewRepository(db *sql.DB) Repository {

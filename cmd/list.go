@@ -15,13 +15,9 @@ import (
 // listCmd represents the list command
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "List all notes or tasks in a table format",
+	Long: `
+	The list command retrieves all notes and tasks from the database and displays them in a formatted table.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		db, err := openDatabase()
 		if err != nil {
@@ -32,8 +28,19 @@ to quickly create a Cobra application.`,
 
 		repo := note.NewRepository(db)
 		ctx := context.Background()
+		var notesTypes string
 
-		notes, err := repo.ListNotes(ctx)
+		if len(args) > 0 {
+			notesTypes = args[0]
+		}
+
+		var notes []note.Note
+		if len(notesTypes) == 0 {
+			notes, err = repo.ListNotes(ctx)
+		} else {
+			notes, err = repo.ListTasks(ctx)
+		}
+
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error listing notes: %v\n", err)
 			os.Exit(1)
@@ -50,7 +57,14 @@ to quickly create a Cobra application.`,
 			os.Exit(1)
 		}
 
-		displayNotes(notes, tagsByNoteID, fmt.Sprintf("📝 Notes (%d)", len(notes)))
+		var title string
+		if len(notesTypes) == 0 {
+			title = fmt.Sprintf("Notes (%d)", len(notes))
+		} else {
+			title = fmt.Sprintf("Tasks (%d)", len(notes))
+		}
+
+		displayNotesAsTable(notes, tagsByNoteID, title)
 	},
 }
 

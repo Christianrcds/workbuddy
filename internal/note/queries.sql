@@ -17,6 +17,20 @@ FROM
 ORDER BY
     created_at DESC;
 
+-- name: ListTasks :many
+SELECT
+    id,
+    content,
+    created_at,
+    completed_at,
+    is_task
+FROM
+    note
+WHERE
+    is_task = 1
+ORDER BY
+    created_at DESC;
+
 -- Tags
 -- name: CreateTag :one
 INSERT INTO

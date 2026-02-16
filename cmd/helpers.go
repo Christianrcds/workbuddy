@@ -11,6 +11,7 @@ import (
 	"workbuddy/internal/note"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	_ "modernc.org/sqlite"
 )
 
@@ -103,14 +104,124 @@ func getNoteStyles() NoteStyles {
 	}
 }
 
-// displayNotes displays a slice of notes with pretty formatting
+func truncateString(s string, maxLen int) string {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
+		return s
+	}
+	return string(runes[:maxLen]) + "..."
+}
+
+// BorderType define o tipo de borda da tabela
+type BorderType int
+
+const (
+	BorderTypeNormal BorderType = iota
+	BorderTypeASCII
+	BorderTypeMarkdown
+)
+
+func getBorder(bt BorderType) lipgloss.Border {
+	switch bt {
+	case BorderTypeASCII:
+		return lipgloss.ASCIIBorder()
+	case BorderTypeMarkdown:
+		return lipgloss.MarkdownBorder()
+	default:
+		return lipgloss.NormalBorder()
+	}
+}
+
+func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, title string) {
+	purple := lipgloss.Color("99")
+	gray := lipgloss.Color("245")
+	lightGray := lipgloss.Color("241")
+
+	headerStyle := lipgloss.NewStyle().
+		Foreground(purple).
+		Bold(true).
+		Align(lipgloss.Center).
+		Padding(0, 1).
+		Width(14)
+
+	cellStyle := lipgloss.NewStyle().
+		Padding(0, 1).
+		Width(14)
+
+	oddRowStyle := cellStyle.Foreground(gray)
+	evenRowStyle := cellStyle.Foreground(lightGray)
+
+	var rows [][]string
+
+	showStatus := false
+	if len(notes) > 0 && notes[0].IsTask {
+		showStatus = true
+	}
+
+	for _, n := range notes {
+
+		dateStr := n.CreatedAt.In(time.Local).Format("02/01 15:04")
+
+		statusStr := "-"
+		if n.IsTask {
+			if n.CompletedAt.Valid {
+				statusStr = "✅ Done"
+			} else {
+				statusStr = "⏳ Pending"
+			}
+		}
+
+		descStr := n.Content
+
+		tagsStr := "-"
+		if tags, ok := tagsByNoteID[n.ID]; ok && len(tags) > 0 {
+			tagsStr = strings.Join(tags, ",")
+			tagsStr = truncateString(tagsStr, 15)
+		}
+
+		idStr := fmt.Sprintf("%d", n.ID)
+
+		if showStatus {
+			rows = append(rows, []string{idStr, dateStr, descStr, tagsStr, statusStr})
+		} else {
+			rows = append(rows, []string{idStr, dateStr, descStr, tagsStr})
+		}
+	}
+
+	var headers []string
+	if showStatus {
+		headers = []string{"ID", "Date", "Description", "Tags", "Status"}
+	} else {
+		headers = []string{"ID", "Date", "Description", "Tags"}
+	}
+
+	t := table.New().
+		BorderStyle(lipgloss.NewStyle().Foreground(purple)).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			switch {
+			case row == table.HeaderRow:
+				return headerStyle
+			case row%2 == 0:
+				return evenRowStyle
+			default:
+				return oddRowStyle
+			}
+		}).
+		Headers(headers...).
+		Rows(rows...)
+
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(purple)
+	fmt.Printf("\n%s\n", titleStyle.Render(title))
+	fmt.Println(t.Render())
+}
+
 func displayNotes(notes []note.Note, tagsByNoteID map[int64][]string, title string) {
 	styles := getNoteStyles()
 
 	fmt.Printf("\n%s\n", styles.Header.Render(title))
 
 	for _, n := range notes {
-		dateStr := n.CreatedAt.In(time.Local).Format("Mon, 02 Jan 2006 15:04")
+		dateStr := n.CreatedAt.In(time.Local).Format("Mon, 02 Jan 2006 15:04") + styles.ID.Render(fmt.Sprintf("ID: %d", n.ID))
 		statusText := ""
 		statusStyle := styles.StatusPending
 		if n.IsTask {
@@ -125,15 +236,14 @@ func displayNotes(notes []note.Note, tagsByNoteID map[int64][]string, title stri
 		if n.IsTask {
 			noteLines = append(noteLines, statusStyle.Render(statusText))
 		}
-		if tagsLine := renderTagsLine(tagsByNoteID[n.ID], n.CompletedAt.Valid, styles); tagsLine != "" {
-			noteLines = append(noteLines, tagsLine)
-		}
+
 		noteLines = append(
 			noteLines,
 			renderDescriptionLine(n.Content, n.CompletedAt.Valid, styles),
-			styles.ID.Render(fmt.Sprintf("ID: %d", n.ID)),
 		)
-
+		if tagsLine := renderTagsLine(tagsByNoteID[n.ID], n.CompletedAt.Valid, styles); tagsLine != "" {
+			noteLines = append(noteLines, tagsLine)
+		}
 		noteContent := strings.Join(noteLines, "\n")
 
 		fmt.Println(styles.Box.Render(noteContent))
@@ -162,7 +272,7 @@ func renderDescriptionLine(content string, completed bool, styles NoteStyles) st
 	wrapped := wrapText(content, 70)
 	wrapped = strings.ReplaceAll(wrapped, "\n", "\n  ")
 
-	return label.Render("Description: ") + styles.Content.Render(wrapped)
+	return label.Render("Content: ") + styles.Content.Render(wrapped)
 }
 
 func buildTagsByNoteID(ctx context.Context, repo note.Repository, notes []note.Note) (map[int64][]string, error) {
