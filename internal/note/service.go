@@ -11,7 +11,47 @@ type Service struct {
 	repo Repository
 }
 
-func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags []string, isTask bool) (Note, error) {
+type SearchParams struct {
+	Tag       string
+	Limit     int64
+	TasksOnly bool
+	Completed *bool // nil = no filter, &true = completed only, &false = pending only
+}
+
+func (s *Service) SearchNotes(ctx context.Context, params SearchParams) ([]Note, error) {
+	isTaskFilter := int64(0)
+	completedFilter := int64(0)
+	pendingFilter := int64(0)
+	if params.TasksOnly || params.Completed != nil {
+		isTaskFilter = 1
+	}
+	if params.Completed != nil {
+		if *params.Completed {
+			completedFilter = 1
+		} else {
+			pendingFilter = 1
+		}
+	}
+
+	if params.Tag != "" {
+		return s.repo.SearchNotesByTag(ctx, SearchNotesByTagParams{
+			Name:    params.Tag,
+			Column2: isTaskFilter,
+			Column3: completedFilter,
+			Column4: pendingFilter,
+			Limit:   params.Limit,
+		})
+	}
+
+	return s.repo.SearchNotes(ctx, SearchNotesParams{
+		Column1: isTaskFilter,
+		Column2: completedFilter,
+		Column3: pendingFilter,
+		Limit:   params.Limit,
+	})
+}
+
+func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags []string, isTask int64) (Note, error) {
 	trx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Note{}, err
@@ -21,7 +61,6 @@ func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags [
 	repo := NewRepositoryWithTx(trx)
 
 	createdNote, err := repo.CreateNote(ctx, CreateNoteParams{Content: content, IsTask: isTask})
-
 	if err != nil {
 		return Note{}, err
 	}
@@ -52,18 +91,6 @@ func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags [
 	}
 
 	return createdNote, nil
-}
-
-func (s *Service) GetNotesByTag(ctx context.Context, tag string, limit int) ([]Note, error) {
-	notes, err := s.repo.GetNotesByTagWithLimit(ctx, GetNotesByTagWithLimitParams{
-		Name:  tag,
-		Limit: int64(limit),
-	})
-	if err != nil {
-		return []Note{}, err
-	}
-
-	return notes, nil
 }
 
 func NewService(db *sql.DB) *Service {

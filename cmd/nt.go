@@ -26,6 +26,10 @@ var ntCmd = &cobra.Command{
 		content, _ := cmd.Flags().GetString("content")
 		tags, _ := cmd.Flags().GetStringSlice("tags")
 		isTask, _ := cmd.Flags().GetBool("task")
+		var isTaskInt int64
+		if isTask {
+			isTaskInt = 1
+		}
 
 		db, err := openDatabase()
 		if err != nil {
@@ -37,7 +41,7 @@ var ntCmd = &cobra.Command{
 		ctx := context.Background()
 		service := note.NewService(db)
 
-		note, err := service.CreateNoteWithTags(ctx, content, tags, isTask)
+		note, err := service.CreateNoteWithTags(ctx, content, tags, isTaskInt)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating note: %v\n", err)
 			os.Exit(1)

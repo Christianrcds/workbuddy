@@ -14,7 +14,7 @@ type Note struct {
 	Content     string       `json:"content"`
 	CreatedAt   time.Time    `json:"created_at"`
 	CompletedAt sql.NullTime `json:"completed_at"`
-	IsTask      bool         `json:"is_task"`
+	IsTask      int64        `json:"is_task"`
 }
 
 type NoteTag struct {

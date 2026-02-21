@@ -2,7 +2,6 @@ package note
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"testing"
 )
@@ -22,7 +21,7 @@ func TestGetNotesByTag(t *testing.T) {
 		repo: mockRepo,
 	}
 
-	notes, err := service.GetNotesByTag(context.Background(), "", 10)
+	notes, err := service.SearchNotes(context.Background(), SearchParams{Tag: "", Limit: 10})
 
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
@@ -100,7 +99,7 @@ func TestGetNotesByTag_TableDriven(t *testing.T) {
 			}
 			service := &Service{repo: mockRepo}
 
-			notes, err := service.GetNotesByTag(context.Background(), tt.tag, tt.limit)
+			notes, err := service.SearchNotes(context.Background(), SearchParams{Tag: tt.tag, Limit: int64(tt.limit)})
 
 			if tt.expectError {
 				if err == nil {
@@ -149,13 +148,6 @@ func (m *mockRepositoryWithNotes) AddTagToNote(ctx context.Context, arg AddTagTo
 	return nil
 }
 
-func (m *mockRepositoryWithNotes) GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagWithLimitParams) ([]Note, error) {
-	if m.errorToReturn != nil {
-		return nil, m.errorToReturn
-	}
-	return m.notesToReturn, nil
-}
-
 func (m *mockRepositoryWithNotes) DeleteNoteByID(ctx context.Context, id int64) (int64, error) {
 	return 0, nil
 }
@@ -180,54 +172,17 @@ func (m *mockRepositoryWithNotes) ListTasks(ctx context.Context) ([]Note, error)
 	return nil, nil
 }
 
-type mockRepository struct {
-	createNoteCalled bool
-	createNoteArg    string
-	createNoteReturn Note
-	createNoteError  error
-	tags             map[string]Tag
-}
-
-func (m *mockRepository) CreateNote(ctx context.Context, content string) (Note, error) {
-	m.createNoteCalled = true
-	m.createNoteArg = content
-
-	if m.createNoteError != nil {
-		return Note{}, m.createNoteError
+func (m *mockRepositoryWithNotes) SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error) {
+	if m.errorToReturn != nil {
+		return nil, m.errorToReturn
 	}
-
-	return m.createNoteReturn, nil
+	return m.notesToReturn, nil
 }
 
-func (m *mockRepository) ListNotes(ctx context.Context) ([]Note, error) {
-	return nil, nil
-}
-
-func (m *mockRepository) CreateTag(ctx context.Context, name string) (Tag, error) {
-	tag := Tag{
-		ID:   int64(len(m.tags) + 1),
-		Name: name,
+func (m *mockRepositoryWithNotes) SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Note, error) {
+	if m.errorToReturn != nil {
+		return nil, m.errorToReturn
 	}
-	m.tags[name] = tag
-	return tag, nil
+	return m.notesToReturn, nil
 }
 
-func (m *mockRepository) GetTag(ctx context.Context, name string) (Tag, error) {
-	tag, exists := m.tags[name]
-	if !exists {
-		return Tag{}, sql.ErrNoRows
-	}
-	return tag, nil
-}
-
-func (m *mockRepository) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error {
-	return nil
-}
-
-func (m *mockRepository) GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagWithLimitParams) ([]Note, error) {
-	return nil, nil
-}
-
-func (m *mockRepository) ListTags(ctx context.Context, pattern string) ([]Tag, error) {
-	return nil, nil
-}

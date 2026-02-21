@@ -34,8 +34,12 @@ to quickly create a Cobra application.`,
 		defer db.Close()
 		repo := note.NewRepository(db)
 		ctx := context.Background()
+		var isTaskInt int64
+		if isTask {
+			isTaskInt = 1
+		}
 
-		note, err := repo.CreateNote(ctx, note.CreateNoteParams{Content: content, IsTask: isTask})
+		note, err := repo.CreateNote(ctx, note.CreateNoteParams{Content: content, IsTask: isTaskInt})
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating note: %v\n", err)

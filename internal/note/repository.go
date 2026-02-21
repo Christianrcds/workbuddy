@@ -21,7 +21,8 @@ type Repository interface {
 
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
-	GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagWithLimitParams) ([]Note, error)
+	SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error)
+	SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Note, error)
 }
 
 type sqliteRepo struct {
@@ -61,10 +62,6 @@ func (r *sqliteRepo) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) e
 	return r.queries.AddTagToNote(ctx, arg)
 }
 
-func (r *sqliteRepo) GetNotesByTagWithLimit(ctx context.Context, arg GetNotesByTagWithLimitParams) ([]Note, error) {
-	return r.queries.GetNotesByTagWithLimit(ctx, arg)
-}
-
 func (r *sqliteRepo) ListTags(ctx context.Context, name string) ([]Tag, error) {
 	return r.queries.ListTags(ctx, name)
 }
@@ -75,6 +72,14 @@ func (r *sqliteRepo) ListTagsByNoteID(ctx context.Context, noteID int64) ([]stri
 
 func (r *sqliteRepo) ListTasks(ctx context.Context) ([]Note, error) {
 	return r.queries.ListTasks(ctx)
+}
+
+func (r *sqliteRepo) SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error) {
+	return r.queries.SearchNotesByTag(ctx, arg)
+}
+
+func (r *sqliteRepo) SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Note, error) {
+	return r.queries.SearchNotes(ctx, arg)
 }
 
 func NewRepository(db *sql.DB) Repository {

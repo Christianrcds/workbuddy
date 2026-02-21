@@ -154,7 +154,7 @@ func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, tit
 	var rows [][]string
 
 	showStatus := false
-	if len(notes) > 0 && notes[0].IsTask {
+	if len(notes) > 0 && notes[0].IsTask == 1 {
 		showStatus = true
 	}
 
@@ -163,7 +163,7 @@ func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, tit
 		dateStr := n.CreatedAt.In(time.Local).Format("02/01 15:04")
 
 		statusStr := "-"
-		if n.IsTask {
+		if n.IsTask == 1 {
 			if n.CompletedAt.Valid {
 				statusStr = "✅ Done"
 			} else {
@@ -221,10 +221,11 @@ func displayNotes(notes []note.Note, tagsByNoteID map[int64][]string, title stri
 	fmt.Printf("\n%s\n", styles.Header.Render(title))
 
 	for _, n := range notes {
+
 		dateStr := n.CreatedAt.In(time.Local).Format("Mon, 02 Jan 2006 15:04") + styles.ID.Render(fmt.Sprintf("ID: %d", n.ID))
 		statusText := ""
 		statusStyle := styles.StatusPending
-		if n.IsTask {
+		if n.IsTask == 1 {
 			statusText = "[ ] Pending"
 			if n.CompletedAt.Valid {
 				completedAt := n.CompletedAt.Time.In(time.Local).Format("Mon, 02 Jan 2006 15:04")
@@ -233,7 +234,7 @@ func displayNotes(notes []note.Note, tagsByNoteID map[int64][]string, title stri
 			}
 		}
 		noteLines := []string{styles.Date.Render(dateStr)}
-		if n.IsTask {
+		if n.IsTask == 1 {
 			noteLines = append(noteLines, statusStyle.Render(statusText))
 		}
 
