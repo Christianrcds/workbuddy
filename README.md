@@ -144,9 +144,9 @@ Tasks show status indicators `[ ]` or `[x]` only when created with `--task`.
 workbuddy tags
 ```
 
-### Filter notes by tag
+### Search notes
 
-This will filter by default notes with the tag `work` and return 1 result.
+Search notes by tag (returns up to 5 results by default):
 
 ```bash
 workbuddy search -t "work"
@@ -156,6 +156,51 @@ To return more results, use the `-l` flag:
 
 ```bash
 workbuddy search -t "work" -l 10
+```
+
+Search all notes without filtering by tag:
+
+```bash
+workbuddy search
+```
+
+#### Filter by task status
+
+Show only tasks (notes created with `--task`):
+
+```bash
+workbuddy search --tasks
+workbuddy search -k
+```
+
+Show only **pending** (incomplete) tasks:
+
+```bash
+workbuddy search --pending
+workbuddy search -p
+```
+
+Show only **completed** tasks:
+
+```bash
+workbuddy search --completed
+workbuddy search -c
+```
+
+> **Note:** `--completed` and `--pending` are mutually exclusive — using both at the same time returns an error.
+
+#### Combining flags
+
+All flags can be combined. For example, show pending tasks tagged `work`, returning up to 10:
+
+```bash
+workbuddy search -t "work" --pending -l 10
+```
+
+Show all completed tasks across all tags:
+
+```bash
+workbuddy search --completed
 ```
 
 ### Mark task as completed
