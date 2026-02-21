@@ -121,6 +121,150 @@ func TestGetNotesByTag_TableDriven(t *testing.T) {
 	}
 }
 
+func TestCreateNoteWithTags_TableDriven(t *testing.T) {
+	tests := []struct {
+		name         string
+		content      string
+		tags         []string
+		isTask       int64
+		expectError  bool
+		expectedTags []string // must be in alphabetical order (ListTagsByNoteID sorts by name)
+		expectedTask int64
+	}{
+		{
+			name:         "creates note with single tag",
+			content:      "Buy milk",
+			tags:         []string{"shopping"},
+			isTask:       0,
+			expectedTags: []string{"shopping"},
+			expectedTask: 0,
+		},
+		{
+			name:         "creates note with multiple tags",
+			content:      "Team standup",
+			tags:         []string{"work", "daily"},
+			isTask:       0,
+			expectedTags: []string{"daily", "work"}, // alphabetical order
+			expectedTask: 0,
+		},
+		{
+			name:         "creates note with no tags",
+			content:      "Just a thought",
+			tags:         []string{},
+			isTask:       0,
+			expectedTags: []string{},
+			expectedTask: 0,
+		},
+		{
+			name:         "creates a task",
+			content:      "Finish the report",
+			tags:         []string{"work"},
+			isTask:       1,
+			expectedTags: []string{"work"},
+			expectedTask: 1,
+		},
+		{
+			name:         "trims whitespace from tags",
+			content:      "Note with padded tags",
+			tags:         []string{" work ", " personal "},
+			isTask:       0,
+			expectedTags: []string{"personal", "work"}, // trimmed and alphabetical
+			expectedTask: 0,
+		},
+		{
+			// This exposes a current limitation: the service does not deduplicate
+			// tags before processing, so inserting the same tag twice violates
+			// the PRIMARY KEY constraint on note_tags and causes a rollback.
+			name:        "duplicate tags in input cause error",
+			content:     "Note with duplicate tags",
+			tags:        []string{"work", "work"},
+			isTask:      0,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db := newTestDB(t)
+			service := NewService(db)
+			ctx := context.Background()
+
+			note, err := service.CreateNoteWithTags(ctx, tt.content, tt.tags, tt.isTask)
+
+			if tt.expectError {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if note.Content != tt.content {
+				t.Errorf("expected content %q, got %q", tt.content, note.Content)
+			}
+			if note.ID == 0 {
+				t.Error("expected non-zero ID")
+			}
+			if note.IsTask != tt.expectedTask {
+				t.Errorf("expected isTask %d, got %d", tt.expectedTask, note.IsTask)
+			}
+
+			repo := NewRepository(db)
+			tags, err := repo.ListTagsByNoteID(ctx, note.ID)
+			if err != nil {
+				t.Fatalf("failed to list tags: %v", err)
+			}
+			if len(tags) != len(tt.expectedTags) {
+				t.Fatalf("expected %d tags, got %d: %v", len(tt.expectedTags), len(tags), tags)
+			}
+			for i, tag := range tags {
+				if tag != tt.expectedTags[i] {
+					t.Errorf("tag[%d]: expected %q, got %q", i, tt.expectedTags[i], tag)
+				}
+			}
+		})
+	}
+}
+
+func TestCreateNoteWithTags_ReusesExistingTag(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	// Create two notes with the same tag
+	_, err := service.CreateNoteWithTags(ctx, "First note", []string{"work"}, 0)
+	if err != nil {
+		t.Fatalf("failed to create first note: %v", err)
+	}
+
+	note2, err := service.CreateNoteWithTags(ctx, "Second note", []string{"work"}, 0)
+	if err != nil {
+		t.Fatalf("failed to create second note: %v", err)
+	}
+
+	// The second note should still be tagged with "work"
+	repo := NewRepository(db)
+	tags, err := repo.ListTagsByNoteID(ctx, note2.ID)
+	if err != nil {
+		t.Fatalf("failed to list tags: %v", err)
+	}
+	if len(tags) != 1 || tags[0] != "work" {
+		t.Errorf("expected tag 'work', got %v", tags)
+	}
+
+	// Most importantly: only ONE "work" tag should exist in the database
+	// This verifies the get-or-create logic didn't duplicate the tag
+	allTags, err := repo.ListTags(ctx, "work")
+	if err != nil {
+		t.Fatalf("failed to list all tags: %v", err)
+	}
+	if len(allTags) != 1 {
+		t.Errorf("expected 1 'work' tag in DB, got %d — tag was duplicated!", len(allTags))
+	}
+}
+
 // Mock implementations
 
 type mockRepositoryWithNotes struct {
