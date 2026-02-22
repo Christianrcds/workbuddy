@@ -1,12 +1,10 @@
-/*
-Copyright © 2026 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
 	"context"
 	"fmt"
 	"os"
+
 	"workbuddy/internal/note"
 
 	"github.com/spf13/cobra"
@@ -25,7 +23,7 @@ var searchCmd = &cobra.Command{
 		tag, _ := cmd.Flags().GetString("tag")
 		limit, _ := cmd.Flags().GetInt("limit")
 		completed, _ := cmd.Flags().GetBool("completed")
-		is_task, _ := cmd.Flags().GetBool("tasks")
+		isTask, _ := cmd.Flags().GetBool("tasks")
 		pending, _ := cmd.Flags().GetBool("pending")
 
 		if completed && pending {
@@ -53,10 +51,9 @@ var searchCmd = &cobra.Command{
 		notes, err := service.SearchNotes(ctx, note.SearchParams{
 			Tag:       tag,
 			Limit:     int64(limit),
-			TasksOnly: is_task,
+			TasksOnly: isTask,
 			Completed: completedFilter,
 		})
-
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error searching notes: %v\n", err)
 			os.Exit(1)

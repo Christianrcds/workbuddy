@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
+
 	"workbuddy/internal/note"
 
 	"github.com/charmbracelet/lipgloss"
@@ -51,7 +53,7 @@ func getDBPath() string {
 
 func openDatabase() (*sql.DB, error) {
 	dbPath := getDBPath()
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dbPath), 0o755); err != nil {
 		return nil, fmt.Errorf("failed to create database directory: %w", err)
 	}
 	return sql.Open("sqlite", dbPath)
@@ -288,4 +290,49 @@ func buildTagsByNoteID(ctx context.Context, repo note.Repository, notes []note.N
 		}
 	}
 	return tagsByNoteID, nil
+}
+
+type editorRunner func(path string) error
+
+func openEditorForContent() (string, error) {
+	editor := os.Getenv("EDITOR")
+	if editor == "" {
+		return "", fmt.Errorf("no editor configured: set the $EDITOR environment variable")
+	}
+
+	return openEditorWithRunner(func(path string) error {
+		cmd := exec.Command(editor, path)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	})
+}
+
+func openEditorWithRunner(runner editorRunner) (string, error) {
+	tmpFile, err := os.CreateTemp("", "workbuddy-note-*.txt")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmpPath := tmpFile.Name()
+	if err := tmpFile.Close(); err != nil {
+		return "", fmt.Errorf("failed to close temp file: %w", err)
+	}
+	defer func() { _ = os.Remove(tmpPath) }()
+
+	if err := runner(tmpPath); err != nil {
+		return "", fmt.Errorf("editor exited with error: %w", err)
+	}
+
+	data, err := os.ReadFile(tmpPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read temp file: %w", err)
+	}
+
+	content := strings.TrimSpace(string(data))
+	if content == "" {
+		return "", fmt.Errorf("aborting: note is empty")
+	}
+
+	return content, nil
 }

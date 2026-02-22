@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+
 	"workbuddy/internal/note"
 
 	"github.com/spf13/cobra"
@@ -29,6 +30,15 @@ var ntCmd = &cobra.Command{
 		var isTaskInt int64
 		if isTask {
 			isTaskInt = 1
+		}
+
+		if content == "" {
+			var err error
+			content, err = openEditorForContent()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error receiving content: %v\n", err)
+				os.Exit(1)
+			}
 		}
 
 		db, err := openDatabase()
@@ -60,6 +70,4 @@ func init() {
 	ntCmd.Flags().StringP("content", "c", "", "Note content (required)")
 	ntCmd.Flags().StringSliceP("tags", "t", []string{}, "Tags (comma-separated)")
 	ntCmd.Flags().BoolP("task", "k", false, "Create as a task (shows pending/checked in list)")
-
-	ntCmd.MarkFlagRequired("content")
 }
