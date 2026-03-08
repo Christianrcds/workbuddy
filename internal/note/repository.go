@@ -23,6 +23,7 @@ type Repository interface {
 
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
+	DeleteAllTagsFromNote(ctx context.Context, noteID int64) error
 	SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error)
 	SearchNotesByTagAndContent(ctx context.Context, arg SearchNotesByTagAndContentParams) ([]Note, error)
 	SearchNotesByContent(ctx context.Context, arg SearchNotesByContentParams) ([]Note, error)
@@ -72,6 +73,10 @@ func (r *sqliteRepo) GetTag(ctx context.Context, name string) (Tag, error) {
 
 func (r *sqliteRepo) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error {
 	return r.queries.AddTagToNote(ctx, arg)
+}
+
+func (r *sqliteRepo) DeleteAllTagsFromNote(ctx context.Context, noteID int64) error {
+	return r.queries.DeleteAllTagsFromNote(ctx, noteID)
 }
 
 func (r *sqliteRepo) ListTags(ctx context.Context, name string) ([]Tag, error) {

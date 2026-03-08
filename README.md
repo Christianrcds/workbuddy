@@ -74,6 +74,8 @@ Complete or remove items:
 workbuddy check 12
 workbuddy update 12 -c "Updated content"
 workbuddy update 12
+workbuddy update 12 --add-tag urgent --remove-tag someday
+workbuddy update 12 --set-tags work,backend
 workbuddy remove 12
 ```
 
@@ -81,6 +83,8 @@ workbuddy remove 12
 
 - `workbuddy create` is the primary creation command and supports tags plus editor-based input.
 - `workbuddy update` updates content inline, and opens the current note in your editor when `-c` is omitted.
+- `workbuddy update` also supports tag changes with `--add-tag`, `--remove-tag`, and `--set-tags`.
+- If `-c` is omitted, `update` opens the editor even when tag flags are also present.
 - Tags accept comma-separated values or repeated flags: `-t work,urgent` or `-t work -t urgent`.
 - `workbuddy search [query]` accepts an optional content query plus the existing filters.
 - `--completed` and `--pending` are mutually exclusive on `search`.

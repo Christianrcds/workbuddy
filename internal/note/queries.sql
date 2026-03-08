@@ -69,6 +69,11 @@ INSERT INTO
 VALUES
   (?, ?);
 
+-- name: DeleteAllTagsFromNote :exec
+DELETE FROM note_tags
+WHERE
+  note_id = ?;
+
 -- name: SearchNotesByTag :many 
 SELECT
   n.id,

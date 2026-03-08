@@ -29,10 +29,10 @@ Status: Done
 
 - Added `workbuddy update <id> -c "..."` for inline note edits.
 - Added editor-based updating to `workbuddy update <id>` when `-c` is omitted.
+- Added tag updates to `workbuddy update` with `--add-tag`, `--remove-tag`, and `--set-tags`.
 - Reused the existing editor workflow with seeded note content.
 - Added repository and service support for note lookup and content updates.
 - Removed the duplicate `edit` command to keep one canonical update path.
-- Kept tag editing out of scope for now to avoid mixing content edits with tag management.
 
 ## Near-Term Priorities
 

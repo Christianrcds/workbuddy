@@ -15,6 +15,7 @@ type Querier interface {
 	CreateNote(ctx context.Context, arg CreateNoteParams) (Note, error)
 	// Tags
 	CreateTag(ctx context.Context, name string) (Tag, error)
+	DeleteAllTagsFromNote(ctx context.Context, noteID int64) error
 	DeleteNoteByID(ctx context.Context, id int64) (int64, error)
 	DeleteTaskByID(ctx context.Context, id int64) (int64, error)
 	GetNoteByID(ctx context.Context, id int64) (Note, error)

@@ -72,6 +72,17 @@ func (q *Queries) CreateTag(ctx context.Context, name string) (Tag, error) {
 	return i, err
 }
 
+const deleteAllTagsFromNote = `-- name: DeleteAllTagsFromNote :exec
+DELETE FROM note_tags
+WHERE
+  note_id = ?
+`
+
+func (q *Queries) DeleteAllTagsFromNote(ctx context.Context, noteID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteAllTagsFromNote, noteID)
+	return err
+}
+
 const deleteNoteByID = `-- name: DeleteNoteByID :execrows
 DELETE FROM note
 WHERE

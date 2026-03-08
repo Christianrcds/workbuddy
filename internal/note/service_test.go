@@ -301,10 +301,117 @@ func TestUpdateNoteContent(t *testing.T) {
 func TestUpdateNoteContent_RejectsEmptyContent(t *testing.T) {
 	db := newTestDB(t)
 	service := NewService(db)
+	ctx := context.Background()
 
-	_, err := service.UpdateNoteContent(context.Background(), 1, "   ")
+	note, err := service.CreateNote(ctx, "Original content", []string{"work"}, 0)
+	if err != nil {
+		t.Fatalf("failed to create note: %v", err)
+	}
+
+	_, err = service.UpdateNoteContent(ctx, note.ID, "   ")
 	if !errors.Is(err, errEmptyNoteContent) {
 		t.Fatalf("expected errEmptyNoteContent, got %v", err)
+	}
+}
+
+func TestUpdateNote_Tags(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	n, err := service.CreateNote(ctx, "Original content", []string{"work", "urgent"}, 0)
+	if err != nil {
+		t.Fatalf("failed to create note: %v", err)
+	}
+
+	tests := []struct {
+		name   string
+		params UpdateParams
+		want   []string
+	}{
+		{
+			name: "adds tags without changing content",
+			params: UpdateParams{
+				AddTags: []string{"backend", "work"},
+			},
+			want: []string{"backend", "urgent", "work"},
+		},
+		{
+			name: "removes tags",
+			params: UpdateParams{
+				RemoveTags: []string{"urgent"},
+			},
+			want: []string{"backend", "work"},
+		},
+		{
+			name: "replaces tags",
+			params: UpdateParams{
+				SetTags: []string{"personal", "follow-up"},
+			},
+			want: []string{"follow-up", "personal"},
+		},
+		{
+			name: "set add and remove combine deterministically",
+			params: UpdateParams{
+				SetTags:    []string{"team", "ops"},
+				AddTags:    []string{"urgent"},
+				RemoveTags: []string{"ops"},
+			},
+			want: []string{"team", "urgent"},
+		},
+	}
+
+	repo := NewRepository(db)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := service.UpdateNote(ctx, n.ID, tt.params)
+			if err != nil {
+				t.Fatalf("UpdateNote returned error: %v", err)
+			}
+
+			got, err := repo.ListTagsByNoteID(ctx, n.ID)
+			if err != nil {
+				t.Fatalf("failed to list tags: %v", err)
+			}
+
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("tags = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestUpdateNote_ContentAndTags(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	n, err := service.CreateNote(ctx, "Original content", []string{"work"}, 0)
+	if err != nil {
+		t.Fatalf("failed to create note: %v", err)
+	}
+
+	newContent := "Updated content"
+	updatedNote, err := service.UpdateNote(ctx, n.ID, UpdateParams{
+		Content: &newContent,
+		AddTags: []string{"urgent"},
+	})
+	if err != nil {
+		t.Fatalf("UpdateNote returned error: %v", err)
+	}
+
+	if updatedNote.Content != newContent {
+		t.Fatalf("updated content = %q, want %q", updatedNote.Content, newContent)
+	}
+
+	repo := NewRepository(db)
+	gotTags, err := repo.ListTagsByNoteID(ctx, n.ID)
+	if err != nil {
+		t.Fatalf("failed to list tags: %v", err)
+	}
+	wantTags := []string{"urgent", "work"}
+	if !reflect.DeepEqual(gotTags, wantTags) {
+		t.Fatalf("tags = %v, want %v", gotTags, wantTags)
 	}
 }
 
@@ -481,6 +588,10 @@ func (m *mockRepositoryWithNotes) GetTag(ctx context.Context, name string) (Tag,
 }
 
 func (m *mockRepositoryWithNotes) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error {
+	return nil
+}
+
+func (m *mockRepositoryWithNotes) DeleteAllTagsFromNote(ctx context.Context, noteID int64) error {
 	return nil
 }
 

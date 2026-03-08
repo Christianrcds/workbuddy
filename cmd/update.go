@@ -25,6 +25,11 @@ var updateCmd = &cobra.Command{
 		}
 
 		content, _ := cmd.Flags().GetString("content")
+		addTags, _ := cmd.Flags().GetStringSlice("add-tag")
+		removeTags, _ := cmd.Flags().GetStringSlice("remove-tag")
+		setTags, _ := cmd.Flags().GetStringSlice("set-tags")
+		contentChanged := cmd.Flags().Changed("content")
+		setTagsChanged := cmd.Flags().Changed("set-tags")
 
 		db, err := openDatabase()
 		if err != nil {
@@ -36,7 +41,7 @@ var updateCmd = &cobra.Command{
 		ctx := context.Background()
 		service := note.NewService(db)
 
-		if content == "" {
+		if !contentChanged {
 			existingNote, err := service.GetNoteByID(ctx, id)
 			if err != nil {
 				switch {
@@ -55,7 +60,16 @@ var updateCmd = &cobra.Command{
 			}
 		}
 
-		updatedNote, err := service.UpdateNoteContent(ctx, id, content)
+		params := note.UpdateParams{
+			AddTags:    addTags,
+			RemoveTags: removeTags,
+		}
+		params.Content = &content
+		if setTagsChanged {
+			params.SetTags = setTags
+		}
+
+		updatedNote, err := service.UpdateNote(ctx, id, params)
 		if err != nil {
 			switch {
 			case errors.Is(err, sql.ErrNoRows):
@@ -78,4 +92,7 @@ func init() {
 	rootCmd.AddCommand(updateCmd)
 
 	updateCmd.Flags().StringP("content", "c", "", "Updated note content (opens $EDITOR when omitted)")
+	updateCmd.Flags().StringSlice("add-tag", nil, "Add one or more tags")
+	updateCmd.Flags().StringSlice("remove-tag", nil, "Remove one or more tags")
+	updateCmd.Flags().StringSlice("set-tags", nil, "Replace all tags with the provided set")
 }
