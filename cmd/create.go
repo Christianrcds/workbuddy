@@ -7,24 +7,28 @@ import (
 	"context"
 	"fmt"
 	"os"
+
 	"workbuddy/internal/note"
 
 	"github.com/spf13/cobra"
 )
 
-// createCmd represents the create command
 var createCmd = &cobra.Command{
 	Use:   "create",
-	Short: "Create a new note",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Create a new note or task",
+	Long:  `Create a new note or task, optionally with tags.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		content, _ := cmd.Flags().GetString("content")
+		tags, _ := cmd.Flags().GetStringSlice("tags")
 		isTask, _ := cmd.Flags().GetBool("task")
+		if content == "" {
+			var err error
+			content, err = openEditorForContent()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error receiving content: %v\n", err)
+				os.Exit(1)
+			}
+		}
 
 		db, err := openDatabase()
 		if err != nil {
@@ -32,14 +36,15 @@ to quickly create a Cobra application.`,
 			os.Exit(1)
 		}
 		defer db.Close()
-		repo := note.NewRepository(db)
+
 		ctx := context.Background()
+		service := note.NewService(db)
 		var isTaskInt int64
 		if isTask {
 			isTaskInt = 1
 		}
 
-		note, err := repo.CreateNote(ctx, note.CreateNoteParams{Content: content, IsTask: isTaskInt})
+		note, err := service.CreateNote(ctx, content, tags, isTaskInt)
 
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error creating note: %v\n", err)
@@ -58,17 +63,7 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(createCmd)
 
-	createCmd.Flags().StringP("content", "c", "", "Note content (required)")
+	createCmd.Flags().StringP("content", "c", "", "Note content (opens $EDITOR when omitted)")
 	createCmd.Flags().BoolP("task", "k", false, "Create as a task (shows pending/checked in list)")
 	createCmd.Flags().StringSliceP("tags", "t", []string{}, "Tags (comma-separated)")
-
-	createCmd.MarkFlagRequired("content")
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// createCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// createCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

@@ -114,20 +114,66 @@ ORDER BY
 LIMIT
   ?;
 
--- Simple text search for now (FTS5 will be implemented manually)
--- name: SearchNotesSimple :many
+-- name: SearchNotesByContent :many
 SELECT
-  id,
-  content,
-  created_at,
-  completed_at,
-  is_task
+  n.id,
+  n.content,
+  n.created_at,
+  n.completed_at,
+  n.is_task
 FROM
-  note
+  notes_fts
+  INNER JOIN note n ON n.id = notes_fts.rowid
 WHERE
-  content LIKE ?
+  notes_fts.content MATCH ?
+  AND (
+    ? = 0
+    OR n.is_task = 1
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NOT NULL
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NULL
+  )
 ORDER BY
-  created_at DESC;
+  n.created_at DESC
+LIMIT
+  ?;
+
+-- name: SearchNotesByTagAndContent :many
+SELECT
+  n.id,
+  n.content,
+  n.created_at,
+  n.completed_at,
+  n.is_task
+FROM
+  notes_fts
+  INNER JOIN note n ON n.id = notes_fts.rowid
+  INNER JOIN note_tags nt ON n.id = nt.note_id
+  INNER JOIN tags t ON nt.tag_id = t.id
+WHERE
+  notes_fts.content MATCH ?
+  AND t.name = ?
+  AND (
+    ? = 0
+    OR n.is_task = 1
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NOT NULL
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NULL
+  )
+ORDER BY
+  n.created_at DESC
+LIMIT
+  ?;
 
 -- name: MarkNoteCompleted :execrows
 UPDATE note

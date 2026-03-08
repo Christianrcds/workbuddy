@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"unicode"
 )
 
 type Service struct {
@@ -12,6 +13,7 @@ type Service struct {
 }
 
 type SearchParams struct {
+	Query     string
 	Tag       string
 	Limit     int64
 	TasksOnly bool
@@ -33,6 +35,28 @@ func (s *Service) SearchNotes(ctx context.Context, params SearchParams) ([]Note,
 		}
 	}
 
+	query := buildContentQuery(params.Query)
+	if query != "" {
+		if params.Tag != "" {
+			return s.repo.SearchNotesByTagAndContent(ctx, SearchNotesByTagAndContentParams{
+				Content: query,
+				Name:    params.Tag,
+				Column3: isTaskFilter,
+				Column4: completedFilter,
+				Column5: pendingFilter,
+				Limit:   params.Limit,
+			})
+		}
+
+		return s.repo.SearchNotesByContent(ctx, SearchNotesByContentParams{
+			Content: query,
+			Column2: isTaskFilter,
+			Column3: completedFilter,
+			Column4: pendingFilter,
+			Limit:   params.Limit,
+		})
+	}
+
 	if params.Tag != "" {
 		return s.repo.SearchNotesByTag(ctx, SearchNotesByTagParams{
 			Name:    params.Tag,
@@ -51,7 +75,7 @@ func (s *Service) SearchNotes(ctx context.Context, params SearchParams) ([]Note,
 	})
 }
 
-func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags []string, isTask int64) (Note, error) {
+func (s *Service) CreateNote(ctx context.Context, content string, tags []string, isTask int64) (Note, error) {
 	trx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Note{}, err
@@ -91,6 +115,29 @@ func (s *Service) CreateNoteWithTags(ctx context.Context, content string, tags [
 	}
 
 	return createdNote, nil
+}
+
+func buildContentQuery(query string) string {
+	tokens := strings.FieldsFunc(query, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	})
+	if len(tokens) == 0 {
+		return ""
+	}
+
+	terms := make([]string, 0, len(tokens))
+	for _, token := range tokens {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			continue
+		}
+		terms = append(terms, strings.ToLower(token)+"*")
+	}
+	if len(terms) == 0 {
+		return ""
+	}
+
+	return strings.Join(terms, " ")
 }
 
 func NewService(db *sql.DB) *Service {

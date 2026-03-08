@@ -357,6 +357,79 @@ func (q *Queries) SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Not
 	return items, nil
 }
 
+const searchNotesByContent = `-- name: SearchNotesByContent :many
+SELECT
+  n.id,
+  n.content,
+  n.created_at,
+  n.completed_at,
+  n.is_task
+FROM
+  notes_fts
+  INNER JOIN note n ON n.id = notes_fts.rowid
+WHERE
+  notes_fts.content MATCH ?
+  AND (
+    ? = 0
+    OR n.is_task = 1
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NOT NULL
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NULL
+  )
+ORDER BY
+  n.created_at DESC
+LIMIT
+  ?
+`
+
+type SearchNotesByContentParams struct {
+	Content string      `json:"content"`
+	Column2 interface{} `json:"column_2"`
+	Column3 interface{} `json:"column_3"`
+	Column4 interface{} `json:"column_4"`
+	Limit   int64       `json:"limit"`
+}
+
+func (q *Queries) SearchNotesByContent(ctx context.Context, arg SearchNotesByContentParams) ([]Note, error) {
+	rows, err := q.db.QueryContext(ctx, searchNotesByContent,
+		arg.Content,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Note
+	for rows.Next() {
+		var i Note
+		if err := rows.Scan(
+			&i.ID,
+			&i.Content,
+			&i.CreatedAt,
+			&i.CompletedAt,
+			&i.IsTask,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchNotesByTag = `-- name: SearchNotesByTag :many
 SELECT
   n.id,
@@ -431,24 +504,57 @@ func (q *Queries) SearchNotesByTag(ctx context.Context, arg SearchNotesByTagPara
 	return items, nil
 }
 
-const searchNotesSimple = `-- name: SearchNotesSimple :many
+const searchNotesByTagAndContent = `-- name: SearchNotesByTagAndContent :many
 SELECT
-  id,
-  content,
-  created_at,
-  completed_at,
-  is_task
+  n.id,
+  n.content,
+  n.created_at,
+  n.completed_at,
+  n.is_task
 FROM
-  note
+  notes_fts
+  INNER JOIN note n ON n.id = notes_fts.rowid
+  INNER JOIN note_tags nt ON n.id = nt.note_id
+  INNER JOIN tags t ON nt.tag_id = t.id
 WHERE
-  content LIKE ?
+  notes_fts.content MATCH ?
+  AND t.name = ?
+  AND (
+    ? = 0
+    OR n.is_task = 1
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NOT NULL
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NULL
+  )
 ORDER BY
-  created_at DESC
+  n.created_at DESC
+LIMIT
+  ?
 `
 
-// Simple text search for now (FTS5 will be implemented manually)
-func (q *Queries) SearchNotesSimple(ctx context.Context, content string) ([]Note, error) {
-	rows, err := q.db.QueryContext(ctx, searchNotesSimple, content)
+type SearchNotesByTagAndContentParams struct {
+	Content string      `json:"content"`
+	Name    string      `json:"name"`
+	Column3 interface{} `json:"column_3"`
+	Column4 interface{} `json:"column_4"`
+	Column5 interface{} `json:"column_5"`
+	Limit   int64       `json:"limit"`
+}
+
+func (q *Queries) SearchNotesByTagAndContent(ctx context.Context, arg SearchNotesByTagAndContentParams) ([]Note, error) {
+	rows, err := q.db.QueryContext(ctx, searchNotesByTagAndContent,
+		arg.Content,
+		arg.Name,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

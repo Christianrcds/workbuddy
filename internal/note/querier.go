@@ -24,9 +24,9 @@ type Querier interface {
 	ListTasks(ctx context.Context) ([]Note, error)
 	MarkNoteCompleted(ctx context.Context, id int64) (int64, error)
 	SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Note, error)
+	SearchNotesByContent(ctx context.Context, arg SearchNotesByContentParams) ([]Note, error)
 	SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error)
-	// Simple text search for now (FTS5 will be implemented manually)
-	SearchNotesSimple(ctx context.Context, content string) ([]Note, error)
+	SearchNotesByTagAndContent(ctx context.Context, arg SearchNotesByTagAndContentParams) ([]Note, error)
 }
 
 var _ Querier = (*Queries)(nil)
