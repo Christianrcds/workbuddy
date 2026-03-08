@@ -101,6 +101,32 @@ func (q *Queries) DeleteTaskByID(ctx context.Context, id int64) (int64, error) {
 	return result.RowsAffected()
 }
 
+const getNoteByID = `-- name: GetNoteByID :one
+SELECT
+  id,
+  content,
+  created_at,
+  completed_at,
+  is_task
+FROM
+  note
+WHERE
+  id = ?
+`
+
+func (q *Queries) GetNoteByID(ctx context.Context, id int64) (Note, error) {
+	row := q.db.QueryRowContext(ctx, getNoteByID, id)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.CompletedAt,
+		&i.IsTask,
+	)
+	return i, err
+}
+
 const getTag = `-- name: GetTag :one
 SELECT
   id, name, created_at
@@ -580,4 +606,34 @@ func (q *Queries) SearchNotesByTagAndContent(ctx context.Context, arg SearchNote
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateNoteContentByID = `-- name: UpdateNoteContentByID :one
+UPDATE note
+SET
+  content = ?
+WHERE
+  id = ? RETURNING id,
+  content,
+  created_at,
+  completed_at,
+  is_task
+`
+
+type UpdateNoteContentByIDParams struct {
+	Content string `json:"content"`
+	ID      int64  `json:"id"`
+}
+
+func (q *Queries) UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error) {
+	row := q.db.QueryRowContext(ctx, updateNoteContentByID, arg.Content, arg.ID)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.CompletedAt,
+		&i.IsTask,
+	)
+	return i, err
 }

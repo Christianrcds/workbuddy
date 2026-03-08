@@ -17,6 +17,7 @@ type Querier interface {
 	CreateTag(ctx context.Context, name string) (Tag, error)
 	DeleteNoteByID(ctx context.Context, id int64) (int64, error)
 	DeleteTaskByID(ctx context.Context, id int64) (int64, error)
+	GetNoteByID(ctx context.Context, id int64) (Note, error)
 	GetTag(ctx context.Context, name string) (Tag, error)
 	ListNotes(ctx context.Context) ([]Note, error)
 	ListTags(ctx context.Context, name string) ([]Tag, error)
@@ -27,6 +28,7 @@ type Querier interface {
 	SearchNotesByContent(ctx context.Context, arg SearchNotesByContentParams) ([]Note, error)
 	SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error)
 	SearchNotesByTagAndContent(ctx context.Context, arg SearchNotesByTagAndContentParams) ([]Note, error)
+	UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error)
 }
 
 var _ Querier = (*Queries)(nil)

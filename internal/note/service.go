@@ -3,6 +3,7 @@ package note
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"unicode"
 )
@@ -19,6 +20,8 @@ type SearchParams struct {
 	TasksOnly bool
 	Completed *bool // nil = no filter, &true = completed only, &false = pending only
 }
+
+var errEmptyNoteContent = errors.New("note content cannot be empty")
 
 func (s *Service) SearchNotes(ctx context.Context, params SearchParams) ([]Note, error) {
 	isTaskFilter := int64(0)
@@ -115,6 +118,22 @@ func (s *Service) CreateNote(ctx context.Context, content string, tags []string,
 	}
 
 	return createdNote, nil
+}
+
+func (s *Service) GetNoteByID(ctx context.Context, id int64) (Note, error) {
+	return s.repo.GetNoteByID(ctx, id)
+}
+
+func (s *Service) UpdateNoteContent(ctx context.Context, id int64, content string) (Note, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return Note{}, errEmptyNoteContent
+	}
+
+	return s.repo.UpdateNoteContentByID(ctx, UpdateNoteContentByIDParams{
+		Content: content,
+		ID:      id,
+	})
 }
 
 func buildContentQuery(query string) string {

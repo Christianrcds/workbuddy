@@ -9,33 +9,53 @@ import (
 func TestOpenEditorWithRunner(t *testing.T) {
 	tests := []struct {
 		name        string
+		initial     string
 		runner      editorRunner
 		wantContent string
 		wantErr     bool
 	}{
 		{
-			name: "returns content written by runner",
+			name:    "returns content written by runner",
+			initial: "",
 			runner: func(path string) error {
 				return os.WriteFile(path, []byte("my test note"), 0644)
 			},
 			wantContent: "my test note",
 		},
 		{
-			name: "trims surrounding whitespace",
+			name:    "trims surrounding whitespace",
+			initial: "",
 			runner: func(path string) error {
 				return os.WriteFile(path, []byte("  note with spaces  \n"), 0644)
 			},
 			wantContent: "note with spaces",
 		},
 		{
-			name: "returns error when content is empty",
+			name:    "returns error when content is empty",
+			initial: "",
 			runner: func(path string) error {
 				return nil // writes nothing, file stays empty
 			},
 			wantErr: true,
 		},
 		{
-			name: "returns error when runner fails",
+			name:    "seeds initial content before editing",
+			initial: "existing note",
+			runner: func(path string) error {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					return err
+				}
+				if string(data) != "existing note" {
+					return fmt.Errorf("unexpected seeded content: %q", string(data))
+				}
+				return os.WriteFile(path, []byte("edited note"), 0644)
+			},
+			wantContent: "edited note",
+		},
+		{
+			name:    "returns error when runner fails",
+			initial: "",
 			runner: func(path string) error {
 				return fmt.Errorf("editor crashed")
 			},
@@ -45,7 +65,7 @@ func TestOpenEditorWithRunner(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			content, err := openEditorWithRunner(tt.runner)
+			content, err := openEditorWithRunner(tt.initial, tt.runner)
 
 			if tt.wantErr {
 				if err == nil {

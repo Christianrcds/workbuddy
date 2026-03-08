@@ -35,6 +35,18 @@ WHERE
 ORDER BY
   created_at DESC;
 
+-- name: GetNoteByID :one
+SELECT
+  id,
+  content,
+  created_at,
+  completed_at,
+  is_task
+FROM
+  note
+WHERE
+  id = ?;
+
 -- Tags
 -- name: CreateTag :one
 INSERT INTO
@@ -183,6 +195,17 @@ WHERE
   id = ?
   AND completed_at IS NULL
   AND is_task = 1;
+
+-- name: UpdateNoteContentByID :one
+UPDATE note
+SET
+  content = ?
+WHERE
+  id = ? RETURNING id,
+  content,
+  created_at,
+  completed_at,
+  is_task;
 
 -- name: DeleteTaskByID :execrows
 DELETE FROM note

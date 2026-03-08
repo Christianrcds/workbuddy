@@ -9,9 +9,11 @@ type Repository interface {
 	CreateNote(ctx context.Context, params CreateNoteParams) (Note, error)
 	DeleteNoteByID(ctx context.Context, id int64) (int64, error)
 	DeleteTaskByID(ctx context.Context, id int64) (int64, error)
+	GetNoteByID(ctx context.Context, id int64) (Note, error)
 	ListNotes(ctx context.Context) ([]Note, error)
 	ListTasks(ctx context.Context) ([]Note, error)
 	MarkNoteCompleted(ctx context.Context, id int64) (int64, error)
+	UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error)
 
 	// Tags
 	CreateTag(ctx context.Context, name string) (Tag, error)
@@ -44,12 +46,20 @@ func (r *sqliteRepo) DeleteTaskByID(ctx context.Context, id int64) (int64, error
 	return r.queries.DeleteTaskByID(ctx, id)
 }
 
+func (r *sqliteRepo) GetNoteByID(ctx context.Context, id int64) (Note, error) {
+	return r.queries.GetNoteByID(ctx, id)
+}
+
 func (r *sqliteRepo) ListNotes(ctx context.Context) ([]Note, error) {
 	return r.queries.ListNotes(ctx)
 }
 
 func (r *sqliteRepo) MarkNoteCompleted(ctx context.Context, id int64) (int64, error) {
 	return r.queries.MarkNoteCompleted(ctx, id)
+}
+
+func (r *sqliteRepo) UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error) {
+	return r.queries.UpdateNoteContentByID(ctx, arg)
 }
 
 func (r *sqliteRepo) CreateTag(ctx context.Context, name string) (Tag, error) {

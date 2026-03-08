@@ -7,6 +7,7 @@ This branch, `productize-workbuddy`, shifts the project from a learning exercise
 ## Current Features
 
 - Create notes inline or in your editor
+- Update notes inline or in your editor
 - Create tasks and mark them as completed
 - Organize notes with tags
 - Search by tag, task status, and completion state
@@ -71,12 +72,15 @@ Complete or remove items:
 
 ```bash
 workbuddy check 12
+workbuddy update 12 -c "Updated content"
+workbuddy update 12
 workbuddy remove 12
 ```
 
 ## Command Notes
 
 - `workbuddy create` is the primary creation command and supports tags plus editor-based input.
+- `workbuddy update` updates content inline, and opens the current note in your editor when `-c` is omitted.
 - Tags accept comma-separated values or repeated flags: `-t work,urgent` or `-t work -t urgent`.
 - `workbuddy search [query]` accepts an optional content query plus the existing filters.
 - `--completed` and `--pending` are mutually exclusive on `search`.
@@ -113,10 +117,8 @@ The next phase of Workbuddy should focus on usefulness, reliability, and a clean
 
 Near-term priorities:
 
-- Add update and edit commands to complete CRUD
 - Add content search using the existing FTS groundwork
 - Improve validation and user-facing error messages
-- Unify note creation flows so one command path owns creation behavior
 - Expand integration tests around commands, migrations, and database behavior
 - Improve list and search performance by reducing repeated tag lookups
 

@@ -267,6 +267,47 @@ func TestCreateNote_ReusesExistingTag(t *testing.T) {
 	}
 }
 
+func TestUpdateNoteContent(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	createdNote, err := service.CreateNote(ctx, "Original content", []string{"work"}, 0)
+	if err != nil {
+		t.Fatalf("failed to create note: %v", err)
+	}
+
+	updatedNote, err := service.UpdateNoteContent(ctx, createdNote.ID, "Updated content")
+	if err != nil {
+		t.Fatalf("failed to update note: %v", err)
+	}
+
+	if updatedNote.ID != createdNote.ID {
+		t.Fatalf("updated wrong note: got %d, want %d", updatedNote.ID, createdNote.ID)
+	}
+	if updatedNote.Content != "Updated content" {
+		t.Fatalf("updated content = %q, want %q", updatedNote.Content, "Updated content")
+	}
+
+	loadedNote, err := service.GetNoteByID(ctx, createdNote.ID)
+	if err != nil {
+		t.Fatalf("failed to reload note: %v", err)
+	}
+	if loadedNote.Content != "Updated content" {
+		t.Fatalf("reloaded content = %q, want %q", loadedNote.Content, "Updated content")
+	}
+}
+
+func TestUpdateNoteContent_RejectsEmptyContent(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+
+	_, err := service.UpdateNoteContent(context.Background(), 1, "   ")
+	if !errors.Is(err, errEmptyNoteContent) {
+		t.Fatalf("expected errEmptyNoteContent, got %v", err)
+	}
+}
+
 func TestBuildContentQuery(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -451,6 +492,10 @@ func (m *mockRepositoryWithNotes) DeleteTaskByID(ctx context.Context, id int64) 
 	return 0, nil
 }
 
+func (m *mockRepositoryWithNotes) GetNoteByID(ctx context.Context, id int64) (Note, error) {
+	return Note{}, nil
+}
+
 func (m *mockRepositoryWithNotes) ListTags(ctx context.Context, pattern string) ([]Tag, error) {
 	return nil, nil
 }
@@ -461,6 +506,10 @@ func (m *mockRepositoryWithNotes) ListTagsByNoteID(ctx context.Context, noteID i
 
 func (m *mockRepositoryWithNotes) MarkNoteCompleted(ctx context.Context, id int64) (int64, error) {
 	return 0, nil
+}
+
+func (m *mockRepositoryWithNotes) UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error) {
+	return Note{}, nil
 }
 
 func (m *mockRepositoryWithNotes) ListTasks(ctx context.Context) ([]Note, error) {
