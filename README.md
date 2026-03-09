@@ -117,14 +117,9 @@ Core stack:
 
 ## Product Direction
 
-The next phase of Workbuddy should focus on usefulness, reliability, and a cleaner CLI experience.
+Workbuddy should continue to prioritize usefulness, reliability, and a cleaner CLI experience.
 
-Near-term priorities:
-
-- Add content search using the existing FTS groundwork
-- Improve validation and user-facing error messages
-- Expand integration tests around commands, migrations, and database behavior
-- Improve list and search performance by reducing repeated tag lookups
+`todo.md` is the source of truth for the active roadmap and backlog. Keep feature priorities there to avoid drift between docs and implementation status.
 
 ## Contributing
 

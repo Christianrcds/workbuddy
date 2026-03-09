@@ -7,6 +7,7 @@ package note
 
 import (
 	"context"
+	"strings"
 )
 
 const addTagToNote = `-- name: AddTagToNote :exec
@@ -253,6 +254,58 @@ func (q *Queries) ListTagsByNoteID(ctx context.Context, noteID int64) ([]string,
 			return nil, err
 		}
 		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTagsByNoteIDs = `-- name: ListTagsByNoteIDs :many
+SELECT
+  nt.note_id,
+  t.name
+FROM
+  note_tags nt
+  INNER JOIN tags t ON t.id = nt.tag_id
+WHERE
+  nt.note_id IN (/*SLICE:note_ids*/?)
+ORDER BY
+  nt.note_id,
+  t.name
+`
+
+type ListTagsByNoteIDsRow struct {
+	NoteID int64  `json:"note_id"`
+	Name   string `json:"name"`
+}
+
+func (q *Queries) ListTagsByNoteIDs(ctx context.Context, noteIds []int64) ([]ListTagsByNoteIDsRow, error) {
+	query := listTagsByNoteIDs
+	var queryParams []interface{}
+	if len(noteIds) > 0 {
+		for _, v := range noteIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:note_ids*/?", strings.Repeat(",?", len(noteIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:note_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTagsByNoteIDsRow
+	for rows.Next() {
+		var i ListTagsByNoteIDsRow
+		if err := rows.Scan(&i.NoteID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

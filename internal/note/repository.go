@@ -20,6 +20,7 @@ type Repository interface {
 	GetTag(ctx context.Context, name string) (Tag, error)
 	ListTags(ctx context.Context, name string) ([]Tag, error)
 	ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error)
+	ListTagsByNoteIDs(ctx context.Context, noteIDs []int64) (map[int64][]string, error)
 
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
@@ -85,6 +86,24 @@ func (r *sqliteRepo) ListTags(ctx context.Context, name string) ([]Tag, error) {
 
 func (r *sqliteRepo) ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error) {
 	return r.queries.ListTagsByNoteID(ctx, noteID)
+}
+
+func (r *sqliteRepo) ListTagsByNoteIDs(ctx context.Context, noteIDs []int64) (map[int64][]string, error) {
+	tagsByNoteID := make(map[int64][]string)
+	if len(noteIDs) == 0 {
+		return tagsByNoteID, nil
+	}
+
+	rows, err := r.queries.ListTagsByNoteIDs(ctx, noteIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		tagsByNoteID[row.NoteID] = append(tagsByNoteID[row.NoteID], row.Name)
+	}
+
+	return tagsByNoteID, nil
 }
 
 func (r *sqliteRepo) ListTasks(ctx context.Context) ([]Note, error) {

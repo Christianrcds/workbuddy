@@ -23,6 +23,7 @@ type Querier interface {
 	ListNotes(ctx context.Context) ([]Note, error)
 	ListTags(ctx context.Context, name string) ([]Tag, error)
 	ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error)
+	ListTagsByNoteIDs(ctx context.Context, noteIds []int64) ([]ListTagsByNoteIDsRow, error)
 	ListTasks(ctx context.Context) ([]Note, error)
 	MarkNoteCompleted(ctx context.Context, id int64) (int64, error)
 	SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Note, error)

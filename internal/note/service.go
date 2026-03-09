@@ -87,6 +87,11 @@ func (s *Service) SearchNotes(ctx context.Context, params SearchParams) ([]Note,
 }
 
 func (s *Service) CreateNote(ctx context.Context, content string, tags []string, isTask int64) (Note, error) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return Note{}, errEmptyNoteContent
+	}
+
 	trx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return Note{}, err
@@ -100,9 +105,7 @@ func (s *Service) CreateNote(ctx context.Context, content string, tags []string,
 		return Note{}, err
 	}
 
-	for _, tagName := range tags {
-		tagName = strings.TrimSpace(tagName)
-
+	for _, tagName := range normalizeTags(tags) {
 		tag, err := repo.GetTag(ctx, tagName)
 		if err == sql.ErrNoRows {
 			tag, err = repo.CreateTag(ctx, tagName)

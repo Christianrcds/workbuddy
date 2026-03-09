@@ -279,17 +279,12 @@ func renderDescriptionLine(content string, completed bool, styles NoteStyles) st
 }
 
 func buildTagsByNoteID(ctx context.Context, repo note.Repository, notes []note.Note) (map[int64][]string, error) {
-	tagsByNoteID := make(map[int64][]string, len(notes))
+	noteIDs := make([]int64, 0, len(notes))
 	for _, n := range notes {
-		tags, err := repo.ListTagsByNoteID(ctx, n.ID)
-		if err != nil {
-			return nil, err
-		}
-		if len(tags) > 0 {
-			tagsByNoteID[n.ID] = tags
-		}
+		noteIDs = append(noteIDs, n.ID)
 	}
-	return tagsByNoteID, nil
+
+	return repo.ListTagsByNoteIDs(ctx, noteIDs)
 }
 
 type editorRunner func(path string) error

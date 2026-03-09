@@ -241,3 +241,16 @@ WHERE
   nt.note_id = ?
 ORDER BY
   t.name;
+
+-- name: ListTagsByNoteIDs :many
+SELECT
+  nt.note_id,
+  t.name
+FROM
+  note_tags nt
+  INNER JOIN tags t ON t.id = nt.tag_id
+WHERE
+  nt.note_id IN (sqlc.slice('note_ids'))
+ORDER BY
+  nt.note_id,
+  t.name;

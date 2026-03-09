@@ -174,14 +174,12 @@ func TestCreateNote_TableDriven(t *testing.T) {
 			expectedTask: 0,
 		},
 		{
-			// This exposes a current limitation: the service does not deduplicate
-			// tags before processing, so inserting the same tag twice violates
-			// the PRIMARY KEY constraint on note_tags and causes a rollback.
-			name:        "duplicate tags in input cause error",
-			content:     "Note with duplicate tags",
-			tags:        []string{"work", "work"},
-			isTask:      0,
-			expectError: true,
+			name:         "duplicate tags in input are deduplicated",
+			content:      "Note with duplicate tags",
+			tags:         []string{"work", "work"},
+			isTask:       0,
+			expectedTags: []string{"work"},
+			expectedTask: 0,
 		},
 	}
 
@@ -225,6 +223,35 @@ func TestCreateNote_TableDriven(t *testing.T) {
 				if tag != tt.expectedTags[i] {
 					t.Errorf("tag[%d]: expected %q, got %q", i, tt.expectedTags[i], tag)
 				}
+			}
+		})
+	}
+}
+
+func TestCreateNote_RejectsEmptyContent(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{
+			name:    "empty string",
+			content: "",
+		},
+		{
+			name:    "whitespace only",
+			content: "   \n\t  ",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := service.CreateNote(ctx, tt.content, []string{"work"}, 0)
+			if !errors.Is(err, errEmptyNoteContent) {
+				t.Fatalf("expected errEmptyNoteContent, got %v", err)
 			}
 		})
 	}
@@ -612,6 +639,10 @@ func (m *mockRepositoryWithNotes) ListTags(ctx context.Context, pattern string) 
 }
 
 func (m *mockRepositoryWithNotes) ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockRepositoryWithNotes) ListTagsByNoteIDs(ctx context.Context, noteIDs []int64) (map[int64][]string, error) {
 	return nil, nil
 }
 
