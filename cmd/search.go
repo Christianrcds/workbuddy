@@ -4,22 +4,28 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"workbuddy/internal/note"
 
 	"github.com/spf13/cobra"
 )
 
-// searchCmd represents the search command
 var searchCmd = &cobra.Command{
-	Use:   "search",
-	Short: "Search notes by tag",
-	Long: `Search for all notes that have a specific tag.
+	Use:   "search [query]",
+	Short: "Search notes by content, tag, and task state",
+	Long: `Search notes by optional content query, tag, and task state.
 
   Example:
-    workbuddy search --tag golang
-    workbuddy search -t learning`,
+    workbuddy search "release notes"
+    workbuddy search integrations -t work
+    workbuddy search --tag learning --pending`,
+	Args: cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		query := ""
+		if len(args) == 1 {
+			query = args[0]
+		}
 		tag, _ := cmd.Flags().GetString("tag")
 		limit, _ := cmd.Flags().GetInt("limit")
 		completed, _ := cmd.Flags().GetBool("completed")
@@ -49,6 +55,7 @@ var searchCmd = &cobra.Command{
 			completedFilter = &f
 		}
 		notes, err := service.SearchNotes(ctx, note.SearchParams{
+			Query:     query,
 			Tag:       tag,
 			Limit:     int64(limit),
 			TasksOnly: isTask,
@@ -71,16 +78,30 @@ var searchCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		displayNotes(notes, tagsByNoteID, fmt.Sprintf("🔍 Search Results: '%s' (%d found)", tag, len(notes)))
+		displayNotes(notes, tagsByNoteID, searchResultsTitle(query, tag, len(notes)))
 	},
+}
+
+func searchResultsTitle(query, tag string, count int) string {
+	filters := make([]string, 0, 2)
+	if strings.TrimSpace(query) != "" {
+		filters = append(filters, fmt.Sprintf("query=%q", query))
+	}
+	if tag != "" {
+		filters = append(filters, fmt.Sprintf("tag=%q", tag))
+	}
+	if len(filters) == 0 {
+		return fmt.Sprintf("🔍 Search Results (%d found)", count)
+	}
+	return fmt.Sprintf("🔍 Search Results: %s (%d found)", strings.Join(filters, ", "), count)
 }
 
 func init() {
 	rootCmd.AddCommand(searchCmd)
 
-	searchCmd.Flags().StringP("tag", "t", "", "Tag to search for")
+	searchCmd.Flags().StringP("tag", "t", "", "Tag to filter by")
 	searchCmd.Flags().IntP("limit", "l", 5, "Maximum number of notes to return")
 	searchCmd.Flags().BoolP("completed", "c", false, "Search completed notes")
 	searchCmd.Flags().BoolP("tasks", "k", false, "Search tasks")
-	searchCmd.Flags().BoolP("pending", "p", false, "Search pending notes")
+	searchCmd.Flags().BoolP("pending", "p", false, "Search pending tasks")
 }

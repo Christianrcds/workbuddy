@@ -15,18 +15,22 @@ type Querier interface {
 	CreateNote(ctx context.Context, arg CreateNoteParams) (Note, error)
 	// Tags
 	CreateTag(ctx context.Context, name string) (Tag, error)
+	DeleteAllTagsFromNote(ctx context.Context, noteID int64) error
 	DeleteNoteByID(ctx context.Context, id int64) (int64, error)
 	DeleteTaskByID(ctx context.Context, id int64) (int64, error)
+	GetNoteByID(ctx context.Context, id int64) (Note, error)
 	GetTag(ctx context.Context, name string) (Tag, error)
 	ListNotes(ctx context.Context) ([]Note, error)
 	ListTags(ctx context.Context, name string) ([]Tag, error)
 	ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error)
+	ListTagsByNoteIDs(ctx context.Context, noteIds []int64) ([]ListTagsByNoteIDsRow, error)
 	ListTasks(ctx context.Context) ([]Note, error)
 	MarkNoteCompleted(ctx context.Context, id int64) (int64, error)
 	SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Note, error)
+	SearchNotesByContent(ctx context.Context, arg SearchNotesByContentParams) ([]Note, error)
 	SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error)
-	// Simple text search for now (FTS5 will be implemented manually)
-	SearchNotesSimple(ctx context.Context, content string) ([]Note, error)
+	SearchNotesByTagAndContent(ctx context.Context, arg SearchNotesByTagAndContentParams) ([]Note, error)
+	UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error)
 }
 
 var _ Querier = (*Queries)(nil)

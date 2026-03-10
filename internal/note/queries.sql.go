@@ -7,6 +7,7 @@ package note
 
 import (
 	"context"
+	"strings"
 )
 
 const addTagToNote = `-- name: AddTagToNote :exec
@@ -72,6 +73,17 @@ func (q *Queries) CreateTag(ctx context.Context, name string) (Tag, error) {
 	return i, err
 }
 
+const deleteAllTagsFromNote = `-- name: DeleteAllTagsFromNote :exec
+DELETE FROM note_tags
+WHERE
+  note_id = ?
+`
+
+func (q *Queries) DeleteAllTagsFromNote(ctx context.Context, noteID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteAllTagsFromNote, noteID)
+	return err
+}
+
 const deleteNoteByID = `-- name: DeleteNoteByID :execrows
 DELETE FROM note
 WHERE
@@ -99,6 +111,32 @@ func (q *Queries) DeleteTaskByID(ctx context.Context, id int64) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const getNoteByID = `-- name: GetNoteByID :one
+SELECT
+  id,
+  content,
+  created_at,
+  completed_at,
+  is_task
+FROM
+  note
+WHERE
+  id = ?
+`
+
+func (q *Queries) GetNoteByID(ctx context.Context, id int64) (Note, error) {
+	row := q.db.QueryRowContext(ctx, getNoteByID, id)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.CompletedAt,
+		&i.IsTask,
+	)
+	return i, err
 }
 
 const getTag = `-- name: GetTag :one
@@ -216,6 +254,58 @@ func (q *Queries) ListTagsByNoteID(ctx context.Context, noteID int64) ([]string,
 			return nil, err
 		}
 		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTagsByNoteIDs = `-- name: ListTagsByNoteIDs :many
+SELECT
+  nt.note_id,
+  t.name
+FROM
+  note_tags nt
+  INNER JOIN tags t ON t.id = nt.tag_id
+WHERE
+  nt.note_id IN (/*SLICE:note_ids*/?)
+ORDER BY
+  nt.note_id,
+  t.name
+`
+
+type ListTagsByNoteIDsRow struct {
+	NoteID int64  `json:"note_id"`
+	Name   string `json:"name"`
+}
+
+func (q *Queries) ListTagsByNoteIDs(ctx context.Context, noteIds []int64) ([]ListTagsByNoteIDsRow, error) {
+	query := listTagsByNoteIDs
+	var queryParams []interface{}
+	if len(noteIds) > 0 {
+		for _, v := range noteIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:note_ids*/?", strings.Repeat(",?", len(noteIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:note_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListTagsByNoteIDsRow
+	for rows.Next() {
+		var i ListTagsByNoteIDsRow
+		if err := rows.Scan(&i.NoteID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -357,6 +447,79 @@ func (q *Queries) SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Not
 	return items, nil
 }
 
+const searchNotesByContent = `-- name: SearchNotesByContent :many
+SELECT
+  n.id,
+  n.content,
+  n.created_at,
+  n.completed_at,
+  n.is_task
+FROM
+  notes_fts
+  INNER JOIN note n ON n.id = notes_fts.rowid
+WHERE
+  notes_fts.content MATCH ?
+  AND (
+    ? = 0
+    OR n.is_task = 1
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NOT NULL
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NULL
+  )
+ORDER BY
+  n.created_at DESC
+LIMIT
+  ?
+`
+
+type SearchNotesByContentParams struct {
+	Content string      `json:"content"`
+	Column2 interface{} `json:"column_2"`
+	Column3 interface{} `json:"column_3"`
+	Column4 interface{} `json:"column_4"`
+	Limit   int64       `json:"limit"`
+}
+
+func (q *Queries) SearchNotesByContent(ctx context.Context, arg SearchNotesByContentParams) ([]Note, error) {
+	rows, err := q.db.QueryContext(ctx, searchNotesByContent,
+		arg.Content,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Note
+	for rows.Next() {
+		var i Note
+		if err := rows.Scan(
+			&i.ID,
+			&i.Content,
+			&i.CreatedAt,
+			&i.CompletedAt,
+			&i.IsTask,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchNotesByTag = `-- name: SearchNotesByTag :many
 SELECT
   n.id,
@@ -431,24 +594,57 @@ func (q *Queries) SearchNotesByTag(ctx context.Context, arg SearchNotesByTagPara
 	return items, nil
 }
 
-const searchNotesSimple = `-- name: SearchNotesSimple :many
+const searchNotesByTagAndContent = `-- name: SearchNotesByTagAndContent :many
 SELECT
-  id,
-  content,
-  created_at,
-  completed_at,
-  is_task
+  n.id,
+  n.content,
+  n.created_at,
+  n.completed_at,
+  n.is_task
 FROM
-  note
+  notes_fts
+  INNER JOIN note n ON n.id = notes_fts.rowid
+  INNER JOIN note_tags nt ON n.id = nt.note_id
+  INNER JOIN tags t ON nt.tag_id = t.id
 WHERE
-  content LIKE ?
+  notes_fts.content MATCH ?
+  AND t.name = ?
+  AND (
+    ? = 0
+    OR n.is_task = 1
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NOT NULL
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NULL
+  )
 ORDER BY
-  created_at DESC
+  n.created_at DESC
+LIMIT
+  ?
 `
 
-// Simple text search for now (FTS5 will be implemented manually)
-func (q *Queries) SearchNotesSimple(ctx context.Context, content string) ([]Note, error) {
-	rows, err := q.db.QueryContext(ctx, searchNotesSimple, content)
+type SearchNotesByTagAndContentParams struct {
+	Content string      `json:"content"`
+	Name    string      `json:"name"`
+	Column3 interface{} `json:"column_3"`
+	Column4 interface{} `json:"column_4"`
+	Column5 interface{} `json:"column_5"`
+	Limit   int64       `json:"limit"`
+}
+
+func (q *Queries) SearchNotesByTagAndContent(ctx context.Context, arg SearchNotesByTagAndContentParams) ([]Note, error) {
+	rows, err := q.db.QueryContext(ctx, searchNotesByTagAndContent,
+		arg.Content,
+		arg.Name,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -474,4 +670,34 @@ func (q *Queries) SearchNotesSimple(ctx context.Context, content string) ([]Note
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateNoteContentByID = `-- name: UpdateNoteContentByID :one
+UPDATE note
+SET
+  content = ?
+WHERE
+  id = ? RETURNING id,
+  content,
+  created_at,
+  completed_at,
+  is_task
+`
+
+type UpdateNoteContentByIDParams struct {
+	Content string `json:"content"`
+	ID      int64  `json:"id"`
+}
+
+func (q *Queries) UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error) {
+	row := q.db.QueryRowContext(ctx, updateNoteContentByID, arg.Content, arg.ID)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.CompletedAt,
+		&i.IsTask,
+	)
+	return i, err
 }

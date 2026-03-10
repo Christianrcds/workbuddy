@@ -35,6 +35,18 @@ WHERE
 ORDER BY
   created_at DESC;
 
+-- name: GetNoteByID :one
+SELECT
+  id,
+  content,
+  created_at,
+  completed_at,
+  is_task
+FROM
+  note
+WHERE
+  id = ?;
+
 -- Tags
 -- name: CreateTag :one
 INSERT INTO
@@ -56,6 +68,11 @@ INSERT INTO
   note_tags (note_id, tag_id)
 VALUES
   (?, ?);
+
+-- name: DeleteAllTagsFromNote :exec
+DELETE FROM note_tags
+WHERE
+  note_id = ?;
 
 -- name: SearchNotesByTag :many 
 SELECT
@@ -114,20 +131,66 @@ ORDER BY
 LIMIT
   ?;
 
--- Simple text search for now (FTS5 will be implemented manually)
--- name: SearchNotesSimple :many
+-- name: SearchNotesByContent :many
 SELECT
-  id,
-  content,
-  created_at,
-  completed_at,
-  is_task
+  n.id,
+  n.content,
+  n.created_at,
+  n.completed_at,
+  n.is_task
 FROM
-  note
+  notes_fts
+  INNER JOIN note n ON n.id = notes_fts.rowid
 WHERE
-  content LIKE ?
+  notes_fts.content MATCH ?
+  AND (
+    ? = 0
+    OR n.is_task = 1
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NOT NULL
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NULL
+  )
 ORDER BY
-  created_at DESC;
+  n.created_at DESC
+LIMIT
+  ?;
+
+-- name: SearchNotesByTagAndContent :many
+SELECT
+  n.id,
+  n.content,
+  n.created_at,
+  n.completed_at,
+  n.is_task
+FROM
+  notes_fts
+  INNER JOIN note n ON n.id = notes_fts.rowid
+  INNER JOIN note_tags nt ON n.id = nt.note_id
+  INNER JOIN tags t ON nt.tag_id = t.id
+WHERE
+  notes_fts.content MATCH ?
+  AND t.name = ?
+  AND (
+    ? = 0
+    OR n.is_task = 1
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NOT NULL
+  )
+  AND (
+    ? = 0
+    OR n.completed_at IS NULL
+  )
+ORDER BY
+  n.created_at DESC
+LIMIT
+  ?;
 
 -- name: MarkNoteCompleted :execrows
 UPDATE note
@@ -137,6 +200,17 @@ WHERE
   id = ?
   AND completed_at IS NULL
   AND is_task = 1;
+
+-- name: UpdateNoteContentByID :one
+UPDATE note
+SET
+  content = ?
+WHERE
+  id = ? RETURNING id,
+  content,
+  created_at,
+  completed_at,
+  is_task;
 
 -- name: DeleteTaskByID :execrows
 DELETE FROM note
@@ -166,4 +240,17 @@ FROM
 WHERE
   nt.note_id = ?
 ORDER BY
+  t.name;
+
+-- name: ListTagsByNoteIDs :many
+SELECT
+  nt.note_id,
+  t.name
+FROM
+  note_tags nt
+  INNER JOIN tags t ON t.id = nt.tag_id
+WHERE
+  nt.note_id IN (sqlc.slice('note_ids'))
+ORDER BY
+  nt.note_id,
   t.name;

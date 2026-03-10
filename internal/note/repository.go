@@ -9,19 +9,25 @@ type Repository interface {
 	CreateNote(ctx context.Context, params CreateNoteParams) (Note, error)
 	DeleteNoteByID(ctx context.Context, id int64) (int64, error)
 	DeleteTaskByID(ctx context.Context, id int64) (int64, error)
+	GetNoteByID(ctx context.Context, id int64) (Note, error)
 	ListNotes(ctx context.Context) ([]Note, error)
 	ListTasks(ctx context.Context) ([]Note, error)
 	MarkNoteCompleted(ctx context.Context, id int64) (int64, error)
+	UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error)
 
 	// Tags
 	CreateTag(ctx context.Context, name string) (Tag, error)
 	GetTag(ctx context.Context, name string) (Tag, error)
 	ListTags(ctx context.Context, name string) ([]Tag, error)
 	ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error)
+	ListTagsByNoteIDs(ctx context.Context, noteIDs []int64) (map[int64][]string, error)
 
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
+	DeleteAllTagsFromNote(ctx context.Context, noteID int64) error
 	SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error)
+	SearchNotesByTagAndContent(ctx context.Context, arg SearchNotesByTagAndContentParams) ([]Note, error)
+	SearchNotesByContent(ctx context.Context, arg SearchNotesByContentParams) ([]Note, error)
 	SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Note, error)
 }
 
@@ -42,12 +48,20 @@ func (r *sqliteRepo) DeleteTaskByID(ctx context.Context, id int64) (int64, error
 	return r.queries.DeleteTaskByID(ctx, id)
 }
 
+func (r *sqliteRepo) GetNoteByID(ctx context.Context, id int64) (Note, error) {
+	return r.queries.GetNoteByID(ctx, id)
+}
+
 func (r *sqliteRepo) ListNotes(ctx context.Context) ([]Note, error) {
 	return r.queries.ListNotes(ctx)
 }
 
 func (r *sqliteRepo) MarkNoteCompleted(ctx context.Context, id int64) (int64, error) {
 	return r.queries.MarkNoteCompleted(ctx, id)
+}
+
+func (r *sqliteRepo) UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error) {
+	return r.queries.UpdateNoteContentByID(ctx, arg)
 }
 
 func (r *sqliteRepo) CreateTag(ctx context.Context, name string) (Tag, error) {
@@ -62,6 +76,10 @@ func (r *sqliteRepo) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) e
 	return r.queries.AddTagToNote(ctx, arg)
 }
 
+func (r *sqliteRepo) DeleteAllTagsFromNote(ctx context.Context, noteID int64) error {
+	return r.queries.DeleteAllTagsFromNote(ctx, noteID)
+}
+
 func (r *sqliteRepo) ListTags(ctx context.Context, name string) ([]Tag, error) {
 	return r.queries.ListTags(ctx, name)
 }
@@ -70,12 +88,38 @@ func (r *sqliteRepo) ListTagsByNoteID(ctx context.Context, noteID int64) ([]stri
 	return r.queries.ListTagsByNoteID(ctx, noteID)
 }
 
+func (r *sqliteRepo) ListTagsByNoteIDs(ctx context.Context, noteIDs []int64) (map[int64][]string, error) {
+	tagsByNoteID := make(map[int64][]string)
+	if len(noteIDs) == 0 {
+		return tagsByNoteID, nil
+	}
+
+	rows, err := r.queries.ListTagsByNoteIDs(ctx, noteIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, row := range rows {
+		tagsByNoteID[row.NoteID] = append(tagsByNoteID[row.NoteID], row.Name)
+	}
+
+	return tagsByNoteID, nil
+}
+
 func (r *sqliteRepo) ListTasks(ctx context.Context) ([]Note, error) {
 	return r.queries.ListTasks(ctx)
 }
 
 func (r *sqliteRepo) SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error) {
 	return r.queries.SearchNotesByTag(ctx, arg)
+}
+
+func (r *sqliteRepo) SearchNotesByTagAndContent(ctx context.Context, arg SearchNotesByTagAndContentParams) ([]Note, error) {
+	return r.queries.SearchNotesByTagAndContent(ctx, arg)
+}
+
+func (r *sqliteRepo) SearchNotesByContent(ctx context.Context, arg SearchNotesByContentParams) ([]Note, error) {
+	return r.queries.SearchNotesByContent(ctx, arg)
 }
 
 func (r *sqliteRepo) SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Note, error) {

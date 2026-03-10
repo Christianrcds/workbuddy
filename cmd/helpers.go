@@ -279,28 +279,27 @@ func renderDescriptionLine(content string, completed bool, styles NoteStyles) st
 }
 
 func buildTagsByNoteID(ctx context.Context, repo note.Repository, notes []note.Note) (map[int64][]string, error) {
-	tagsByNoteID := make(map[int64][]string, len(notes))
+	noteIDs := make([]int64, 0, len(notes))
 	for _, n := range notes {
-		tags, err := repo.ListTagsByNoteID(ctx, n.ID)
-		if err != nil {
-			return nil, err
-		}
-		if len(tags) > 0 {
-			tagsByNoteID[n.ID] = tags
-		}
+		noteIDs = append(noteIDs, n.ID)
 	}
-	return tagsByNoteID, nil
+
+	return repo.ListTagsByNoteIDs(ctx, noteIDs)
 }
 
 type editorRunner func(path string) error
 
 func openEditorForContent() (string, error) {
+	return openEditorForExistingContent("")
+}
+
+func openEditorForExistingContent(initialContent string) (string, error) {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
 		return "", fmt.Errorf("no editor configured: set the $EDITOR environment variable")
 	}
 
-	return openEditorWithRunner(func(path string) error {
+	return openEditorWithInitialContent(initialContent, func(path string) error {
 		cmd := exec.Command(editor, path)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
@@ -309,12 +308,20 @@ func openEditorForContent() (string, error) {
 	})
 }
 
-func openEditorWithRunner(runner editorRunner) (string, error) {
+func openEditorWithInitialContent(initialContent string, runner editorRunner) (string, error) {
+	return openEditorWithRunner(initialContent, runner)
+}
+
+func openEditorWithRunner(initialContent string, runner editorRunner) (string, error) {
 	tmpFile, err := os.CreateTemp("", "workbuddy-note-*.txt")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temp file: %w", err)
 	}
 	tmpPath := tmpFile.Name()
+	if _, err := tmpFile.WriteString(initialContent); err != nil {
+		_ = tmpFile.Close()
+		return "", fmt.Errorf("failed to seed temp file: %w", err)
+	}
 	if err := tmpFile.Close(); err != nil {
 		return "", fmt.Errorf("failed to close temp file: %w", err)
 	}

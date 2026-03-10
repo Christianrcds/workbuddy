@@ -1,10 +1,21 @@
 # Workbuddy
 
-A CLI note-taking application with tag-based organization, task tracking, and local SQLite storage.
+Workbuddy is a local-first CLI for notes and tasks. It stores everything in SQLite, supports tag-based organization, and is designed to stay fast and scriptable from the terminal.
+
+This branch, `productize-workbuddy`, shifts the project from a learning exercise toward a practical tool with a clearer product direction.
+
+## Current Features
+
+- Create notes inline or in your editor
+- Update notes inline or in your editor
+- Create tasks and mark them as completed
+- Organize notes with tags
+- Search by tag, task status, and completion state
+- Store data locally in SQLite with automatic schema migrations
 
 ## Installation
 
-Requires Go 1.25 or higher.
+Requires Go 1.25 or newer.
 
 ```bash
 git clone https://github.com/Christianrcds/workbuddy.git
@@ -12,69 +23,104 @@ cd workbuddy
 go install
 ```
 
-Make sure `$GOPATH/bin` (usually `~/go/bin`) is in your `$PATH`. On first run, the database is created automatically at `~/.config/workbuddy/workbuddy.db`.
+Make sure your Go bin directory is in `PATH`. On first run, Workbuddy creates its database automatically at `~/.config/workbuddy/workbuddy.db`.
 
-## Usage
+## Quick Start
 
-### Create a note
-
-Without `-c`, workbuddy opens your `$EDITOR` — similar to `git commit` without `-m`:
+Create a note:
 
 ```bash
-workbuddy nt                              # opens editor
-workbuddy nt -t work,urgent               # opens editor, tags applied on save
-workbuddy nt -c "Note content"            # inline
-workbuddy nt -c "Note content" -t work    # inline with tags
+workbuddy create -c "Write weekly plan"
+workbuddy create -c "Call Alice" -t personal,follow-up
 ```
 
-Tags accept comma-separated values or repeated flags: `-t tag1,tag2` or `-t tag1 -t tag2`.
-
-### Create a task
+Create a task:
 
 ```bash
-workbuddy nt -c "Buy milk" --task
-workbuddy nt -t work --task               # opens editor
+workbuddy create -c "Ship release notes" --task
 ```
 
-### List & tags
+Create a note in your editor:
 
 ```bash
-workbuddy list    # all notes
-workbuddy tags    # all tags
+workbuddy create
+workbuddy create -t work,urgent
 ```
 
-### Search
+List notes and tags:
 
 ```bash
-workbuddy search                          # all notes (up to 5)
-workbuddy search -t work                  # filter by tag
-workbuddy search -l 10                    # custom limit
-workbuddy search --tasks                  # tasks only (-k)
-workbuddy search --pending                # incomplete tasks (-p)
-workbuddy search --completed              # completed tasks (-c)
-workbuddy search -t work --pending -l 10  # flags can be combined
+workbuddy list
+workbuddy tags
 ```
 
-> `--completed` and `--pending` are mutually exclusive.
-
-### Check & remove
+Search:
 
 ```bash
-workbuddy check <id>     # mark task as completed
-workbuddy remove <id>    # delete note (asks for confirmation)
+workbuddy search
+workbuddy search "release notes"
+workbuddy search integrations
+workbuddy search -t work
+workbuddy search integrations -t work
+workbuddy search --tasks
+workbuddy search --pending
+workbuddy search --completed
+workbuddy search -t work --pending -l 10
 ```
+
+Complete or remove items:
+
+```bash
+workbuddy check 12
+workbuddy update 12 -c "Updated content"
+workbuddy update 12
+workbuddy update 12 --add-tag urgent --remove-tag someday
+workbuddy update 12 --set-tags work,backend
+workbuddy remove 12
+```
+
+## Command Notes
+
+- `workbuddy create` is the primary creation command and supports tags plus editor-based input.
+- `workbuddy update` updates content inline, and opens the current note in your editor when `-c` is omitted.
+- `workbuddy update` also supports tag changes with `--add-tag`, `--remove-tag`, and `--set-tags`.
+- If `-c` is omitted, `update` opens the editor even when tag flags are also present.
+- Tags accept comma-separated values or repeated flags: `-t work,urgent` or `-t work -t urgent`.
+- `workbuddy search [query]` accepts an optional content query plus the existing filters.
+- `--completed` and `--pending` are mutually exclusive on `search`.
+- `check` only completes tasks.
+- `remove` currently deletes notes by ID after confirmation.
 
 ## Configuration
 
 | Variable | Default | Description |
 |---|---|---|
-| `$EDITOR` | _(none — required for editor mode)_ | Editor opened by `workbuddy nt` |
+| `$EDITOR` | Required for editor mode | Editor opened by `workbuddy create` when `-c` is omitted |
 | `$WORKBUDDY_DB` | `~/.config/workbuddy/workbuddy.db` | Custom database path |
 
-## Technologies
+## Architecture
 
-**Go 1.25.6** · **SQLite** · **sqlc** · **golang-migrate** · **Cobra** · **lipgloss**
+Workbuddy keeps a small, explicit structure:
+
+- `cmd/` contains the Cobra CLI commands
+- `internal/note/` contains the service layer, repository abstraction, sqlc models, and generated queries
+- `migrations/` contains schema changes applied automatically at startup
+
+Core stack:
+
+- Go 1.25.6
+- SQLite via `modernc.org/sqlite`
+- sqlc for typed SQL access
+- golang-migrate for schema migrations
+- Cobra for the CLI
+- lipgloss for terminal output
+
+## Product Direction
+
+Workbuddy should continue to prioritize usefulness, reliability, and a cleaner CLI experience.
+
+`todo.md` is the source of truth for the active roadmap and backlog. Keep feature priorities there to avoid drift between docs and implementation status.
 
 ## Contributing
 
-This is a learning project for understanding Go. Feel free to explore, fork, and experiment!
+Contributions should prioritize stability, usability, and predictable CLI behavior. Small, focused changes are preferred, especially when they improve command consistency, error handling, tests, or search.
