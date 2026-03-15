@@ -1,13 +1,26 @@
 -- Notes
 -- name: CreateNote :one
 INSERT INTO
-  note (content, is_task)
+  note (
+    content,
+    is_task,
+    due_at,
+    task_series_id,
+    recurrence_rule,
+    recurrence_weekday,
+    recurrence_day_of_month
+  )
 VALUES
-  (?, ?) RETURNING id,
+  (?, ?, ?, ?, ?, ?, ?) RETURNING id,
   content,
   created_at,
   completed_at,
-  is_task;
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month;
 
 -- name: ListNotes :many
 SELECT
@@ -15,7 +28,12 @@ SELECT
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 FROM
   note
 ORDER BY
@@ -27,7 +45,12 @@ SELECT
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 FROM
   note
 WHERE
@@ -41,11 +64,61 @@ SELECT
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 FROM
   note
 WHERE
   id = ?;
+
+-- name: GetPendingNoteByTaskSeriesID :one
+SELECT
+  id,
+  content,
+  created_at,
+  completed_at,
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
+FROM
+  note
+WHERE
+  task_series_id = ?
+  AND completed_at IS NULL;
+
+-- name: UpdateNoteAttributesByID :one
+UPDATE note
+SET
+  content = ?,
+  due_at = ?,
+  task_series_id = ?,
+  recurrence_rule = ?,
+  recurrence_weekday = ?,
+  recurrence_day_of_month = ?
+WHERE
+  id = ? RETURNING id,
+  content,
+  created_at,
+  completed_at,
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month;
+
+-- name: DeletePendingNotesByTaskSeriesID :execrows
+DELETE FROM note
+WHERE
+  task_series_id = ?
+  AND completed_at IS NULL;
 
 -- Tags
 -- name: CreateTag :one
@@ -74,13 +147,111 @@ DELETE FROM note_tags
 WHERE
   note_id = ?;
 
+-- Task series
+-- name: CreateTaskSeries :one
+INSERT INTO
+  task_series (
+    content,
+    recurrence_rule,
+    recurrence_weekday,
+    recurrence_day_of_month
+  )
+VALUES
+  (?, ?, ?, ?) RETURNING id,
+  content,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month,
+  active,
+  created_at;
+
+-- name: GetTaskSeriesByID :one
+SELECT
+  id,
+  content,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month,
+  active,
+  created_at
+FROM
+  task_series
+WHERE
+  id = ?;
+
+-- name: GetTaskSeriesByNoteID :one
+SELECT
+  ts.id,
+  ts.content,
+  ts.recurrence_rule,
+  ts.recurrence_weekday,
+  ts.recurrence_day_of_month,
+  ts.active,
+  ts.created_at
+FROM
+  task_series ts
+  INNER JOIN note n ON n.task_series_id = ts.id
+WHERE
+  n.id = ?;
+
+-- name: UpdateTaskSeries :one
+UPDATE task_series
+SET
+  content = ?,
+  recurrence_rule = ?,
+  recurrence_weekday = ?,
+  recurrence_day_of_month = ?,
+  active = ?
+WHERE
+  id = ? RETURNING id,
+  content,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month,
+  active,
+  created_at;
+
+-- name: SetTaskSeriesInactive :execrows
+UPDATE task_series
+SET
+  active = 0
+WHERE
+  id = ?;
+
+-- name: AddTagToTaskSeries :exec
+INSERT INTO
+  task_series_tags (task_series_id, tag_id)
+VALUES
+  (?, ?);
+
+-- name: DeleteAllTagsFromTaskSeries :exec
+DELETE FROM task_series_tags
+WHERE
+  task_series_id = ?;
+
+-- name: ListTagsByTaskSeriesID :many
+SELECT
+  t.name
+FROM
+  tags t
+  INNER JOIN task_series_tags tst ON t.id = tst.tag_id
+WHERE
+  tst.task_series_id = ?
+ORDER BY
+  t.name;
+
 -- name: SearchNotesByTag :many 
 SELECT
   n.id,
   n.content,
   n.created_at,
   n.completed_at,
-  n.is_task
+  n.is_task,
+  n.due_at,
+  n.task_series_id,
+  n.recurrence_rule,
+  n.recurrence_weekday,
+  n.recurrence_day_of_month
 FROM
   note n
   INNER JOIN note_tags nt ON n.id = nt.note_id
@@ -110,7 +281,12 @@ SELECT
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 FROM
   note
 WHERE
@@ -137,7 +313,12 @@ SELECT
   n.content,
   n.created_at,
   n.completed_at,
-  n.is_task
+  n.is_task,
+  n.due_at,
+  n.task_series_id,
+  n.recurrence_rule,
+  n.recurrence_weekday,
+  n.recurrence_day_of_month
 FROM
   notes_fts
   INNER JOIN note n ON n.id = notes_fts.rowid
@@ -166,7 +347,12 @@ SELECT
   n.content,
   n.created_at,
   n.completed_at,
-  n.is_task
+  n.is_task,
+  n.due_at,
+  n.task_series_id,
+  n.recurrence_rule,
+  n.recurrence_weekday,
+  n.recurrence_day_of_month
 FROM
   notes_fts
   INNER JOIN note n ON n.id = notes_fts.rowid
@@ -210,7 +396,12 @@ WHERE
   content,
   created_at,
   completed_at,
-  is_task;
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month;
 
 -- name: DeleteTaskByID :execrows
 DELETE FROM note

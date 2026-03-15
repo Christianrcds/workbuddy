@@ -163,6 +163,10 @@ func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, tit
 	for _, n := range notes {
 
 		dateStr := n.CreatedAt.In(time.Local).Format("02/01 15:04")
+		dueStr := "-"
+		if n.DueAt.Valid {
+			dueStr = formatDueDate(n.DueAt)
+		}
 
 		statusStr := "-"
 		if n.IsTask == 1 {
@@ -182,9 +186,13 @@ func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, tit
 		}
 
 		idStr := fmt.Sprintf("%d", n.ID)
+		recurrenceStr := formatRecurrence(n)
+		if recurrenceStr == "" {
+			recurrenceStr = "-"
+		}
 
 		if showStatus {
-			rows = append(rows, []string{idStr, dateStr, descStr, tagsStr, statusStr})
+			rows = append(rows, []string{idStr, dueStr, dateStr, descStr, tagsStr, recurrenceStr, statusStr})
 		} else {
 			rows = append(rows, []string{idStr, dateStr, descStr, tagsStr})
 		}
@@ -192,7 +200,7 @@ func displayNotesAsTable(notes []note.Note, tagsByNoteID map[int64][]string, tit
 
 	var headers []string
 	if showStatus {
-		headers = []string{"ID", "Date", "Description", "Tags", "Status"}
+		headers = []string{"ID", "Due", "Date", "Description", "Tags", "Repeat", "Status"}
 	} else {
 		headers = []string{"ID", "Date", "Description", "Tags"}
 	}
@@ -238,6 +246,12 @@ func displayNotes(notes []note.Note, tagsByNoteID map[int64][]string, title stri
 		noteLines := []string{styles.Date.Render(dateStr)}
 		if n.IsTask == 1 {
 			noteLines = append(noteLines, statusStyle.Render(statusText))
+			if n.DueAt.Valid {
+				noteLines = append(noteLines, styles.Tags.Render(fmt.Sprintf("Due: %s", formatDueDate(n.DueAt))))
+			}
+			if recurrence := formatRecurrence(n); recurrence != "" {
+				noteLines = append(noteLines, styles.Tags.Render(fmt.Sprintf("Repeats: %s", recurrence)))
+			}
 		}
 
 		noteLines = append(
@@ -276,6 +290,97 @@ func renderDescriptionLine(content string, completed bool, styles NoteStyles) st
 	wrapped = strings.ReplaceAll(wrapped, "\n", "\n  ")
 
 	return label.Render("Content: ") + styles.Content.Render(wrapped)
+}
+
+func formatDueDate(dueAt sql.NullTime) string {
+	if !dueAt.Valid {
+		return ""
+	}
+	return dueAt.Time.Format("2006-01-02")
+}
+
+func formatRecurrence(n note.Note) string {
+	if !n.RecurrenceRule.Valid {
+		return ""
+	}
+
+	switch n.RecurrenceRule.String {
+	case string(note.RecurrenceDaily):
+		return "daily"
+	case string(note.RecurrenceWeekly):
+		if n.RecurrenceWeekday.Valid {
+			return fmt.Sprintf("weekly(%s)", weekdayName(time.Weekday(n.RecurrenceWeekday.Int64)))
+		}
+		return "weekly"
+	case string(note.RecurrenceMonthly):
+		if n.RecurrenceDayOfMonth.Valid {
+			return fmt.Sprintf("monthly(%d)", n.RecurrenceDayOfMonth.Int64)
+		}
+		return "monthly"
+	default:
+		return n.RecurrenceRule.String
+	}
+}
+
+func weekdayName(day time.Weekday) string {
+	switch day {
+	case time.Monday:
+		return "mon"
+	case time.Tuesday:
+		return "tue"
+	case time.Wednesday:
+		return "wed"
+	case time.Thursday:
+		return "thu"
+	case time.Friday:
+		return "fri"
+	case time.Saturday:
+		return "sat"
+	default:
+		return "sun"
+	}
+}
+
+func parseDueDate(raw string) (*time.Time, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("2006-01-02", raw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid due date %q: use YYYY-MM-DD", raw)
+	}
+	return &parsed, nil
+}
+
+func parseWeekday(raw string) (*time.Weekday, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "mon":
+		day := time.Monday
+		return &day, nil
+	case "tue":
+		day := time.Tuesday
+		return &day, nil
+	case "wed":
+		day := time.Wednesday
+		return &day, nil
+	case "thu":
+		day := time.Thursday
+		return &day, nil
+	case "fri":
+		day := time.Friday
+		return &day, nil
+	case "sat":
+		day := time.Saturday
+		return &day, nil
+	case "sun":
+		day := time.Sunday
+		return &day, nil
+	default:
+		return nil, fmt.Errorf("invalid weekday %q: use mon, tue, wed, thu, fri, sat, or sun", raw)
+	}
 }
 
 func buildTagsByNoteID(ctx context.Context, repo note.Repository, notes []note.Note) (map[int64][]string, error) {

@@ -33,7 +33,7 @@ var removeCmd = &cobra.Command{
 		defer db.Close()
 
 		ctx := context.Background()
-		repo := note.NewRepository(db)
+		service := note.NewService(db)
 
 		confirmed, err := confirmRemoval(id)
 		if err != nil {
@@ -45,16 +45,16 @@ var removeCmd = &cobra.Command{
 			return
 		}
 
-		rows, err := repo.DeleteNoteByID(ctx, id)
+		removed, err := service.RemoveNote(ctx, id)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error removing task: %v\n", err)
-			os.Exit(1)
-		}
-		if rows == 0 {
-			fmt.Fprintf(os.Stderr, "Note not found: %d\n", id)
+			fmt.Fprintf(os.Stderr, "Error removing note: %v\n", err)
 			os.Exit(1)
 		}
 
+		if removed.RemovedSeries {
+			fmt.Printf("Removed recurring task series for note %d.\n", id)
+			return
+		}
 		fmt.Printf("Removed note %d.\n", id)
 	},
 }
