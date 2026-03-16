@@ -34,32 +34,75 @@ Status: Done
 - Added repository and service support for note lookup and content updates.
 - Removed the duplicate `edit` command to keep one canonical update path.
 
-## Near-Term Priorities
-
 ### 5. Improve Tag Loading Performance
 
-Goal: avoid repeated database queries when listing or searching notes.
+Status: Done
 
-- Replace the current per-note tag lookup pattern with a batched query.
-- Measure the current flow and compare it with the batched version.
-- Keep the CLI output unchanged while improving the data-loading path.
-- Add tests for notes with no tags, one tag, and multiple tags.
+- Replaced the per-note tag lookup pattern with a batched query.
+- Kept the CLI output unchanged while improving the data-loading path.
+- Added tests for notes with no tags, one tag, and multiple tags.
 
 ### 6. Expand Integration Tests
 
-Goal: verify real workflows against SQLite and migrations.
+Status: Done
 
-- Add end-to-end tests for create, search, list, check, remove, and update flows.
-- Test migrations against a fresh database and an already-initialized database.
-- Cover invalid inputs and user-facing error cases.
-- Add regression tests for duplicate tags, empty notes, and task-only operations.
-- Keep tests easy to run locally with `go test ./...`.
+- Added end-to-end tests for create, search, list, check, remove, and update flows.
+- Tested migrations against a fresh database and an already-initialized database.
+- Covered invalid inputs and user-facing error cases.
+- Added regression tests for duplicate tags, empty notes, and task-only operations.
+- Kept the tests easy to run locally with `go test ./...`.
+
+### 11. Add Recurring Tasks With Simple Cadence Rules
+
+Status: Done
+
+- Added recurring task series backed by schema migrations instead of treating recurrence as a per-row flag.
+- Added `daily`, `weekly`, and `monthly` recurrence with validation for due dates, weekdays, and day-of-month rules.
+- Extended `create`, `update`, `check`, `remove`, `list`, and `search` so recurring tasks behave consistently in the CLI.
+- Preserved completed history when removing a recurring series, while preventing duplicate pending occurrences.
+- Added service and CLI integration tests for recurrence validation, series updates, completion rollover, and monthly clamping.
+
+## Near-Term Priorities
+
+### 7. Improve Validation and User Feedback
+
+Goal: make invalid operations fail clearly and predictably across commands.
+
+- Audit command error messages for consistency around IDs, empty content, conflicting flags, and missing records.
+- Push remaining validation rules into the service layer where behavior should be shared.
+- Add CLI-focused tests for the most important failure cases.
+- Update README examples if any command behavior or wording changes.
+
+### 8. Improve Search and List Ergonomics
+
+Goal: make common retrieval workflows faster and easier from the terminal.
+
+- Add sorting options for `workbuddy list` and `workbuddy search`.
+- Support richer filter combinations, starting with multiple tags.
+- Keep output behavior predictable across styled terminal output and future scripting modes.
+- Add tests for combined filters and sort behavior.
+
+### 9. Add Due Dates and Overdue Task Views
+
+Goal: make task tracking more useful for real daily planning.
+
+- Finish the broader due-date product after the recurrence groundwork already landed.
+- Add overdue and upcoming task views without weakening the current command model.
+- Cover parsing, validation, and overdue filtering in tests.
+
+### 10. Add Tag Management Commands
+
+Goal: manage tag cleanup without direct database edits.
+
+- Add commands to rename and delete tags safely.
+- Keep note-tag relationships consistent when tags are renamed or removed.
+- Decide and document the command semantics before implementation.
+- Add integration tests for tag rename/delete workflows.
 
 ## Brainstorm
 
 Ideas worth exploring after the near-term priorities are underway.
 
-- Add recurring tasks with simple cadence rules.
 - Add due dates and overdue task views.
 - Add priorities for tasks and sorting by urgency.
 - Support note archiving instead of only deletion.

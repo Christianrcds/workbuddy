@@ -8,7 +8,8 @@ This branch, `productize-workbuddy`, shifts the project from a learning exercise
 
 - Create notes inline or in your editor
 - Update notes inline or in your editor
-- Create tasks and mark them as completed
+- Create tasks with optional due dates and recurring schedules
+- Mark tasks as completed and roll recurring tasks forward
 - Organize notes with tags
 - Search by tag, task status, and completion state
 - Store data locally in SQLite with automatic schema migrations
@@ -38,6 +39,8 @@ Create a task:
 
 ```bash
 workbuddy create -c "Ship release notes" --task
+workbuddy create -c "Daily standup" --task --due 2026-03-10 --recur daily -t work,team
+workbuddy create -c "Weekly planning" --task --due 2026-03-16 --recur weekly --weekday mon
 ```
 
 Create a note in your editor:
@@ -76,20 +79,23 @@ workbuddy update 12 -c "Updated content"
 workbuddy update 12
 workbuddy update 12 --add-tag urgent --remove-tag someday
 workbuddy update 12 --set-tags work,backend
+workbuddy update 12 --due 2026-03-31 --recur monthly --day-of-month 31
+workbuddy update 12 --clear-recur
 workbuddy remove 12
 ```
 
 ## Command Notes
 
-- `workbuddy create` is the primary creation command and supports tags plus editor-based input.
-- `workbuddy update` updates content inline, and opens the current note in your editor when `-c` is omitted.
-- `workbuddy update` also supports tag changes with `--add-tag`, `--remove-tag`, and `--set-tags`.
-- If `-c` is omitted, `update` opens the editor even when tag flags are also present.
+- `workbuddy create` is the primary creation command and supports tags, due dates, recurrence, and editor-based input.
+- `workbuddy update` updates content inline, and opens the current note in your editor only when no content, tag, or scheduling flags are provided.
+- `workbuddy update` supports tag changes with `--add-tag`, `--remove-tag`, and `--set-tags`.
+- `workbuddy create` and `workbuddy update` support `--due`, `--recur`, `--weekday`, and `--day-of-month` for scheduled tasks.
+- `workbuddy update --clear-due` clears a task due date, and `--clear-recur` stops future recurrence while keeping the current task.
 - Tags accept comma-separated values or repeated flags: `-t work,urgent` or `-t work -t urgent`.
 - `workbuddy search [query]` accepts an optional content query plus the existing filters.
 - `--completed` and `--pending` are mutually exclusive on `search`.
-- `check` only completes tasks.
-- `remove` currently deletes notes by ID after confirmation.
+- `check` only completes tasks and creates the next occurrence for recurring tasks.
+- `remove` deletes a note by ID after confirmation, and removes the whole recurring series when the target task is recurring while preserving completed history.
 
 ## Configuration
 

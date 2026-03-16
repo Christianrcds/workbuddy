@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -29,19 +30,19 @@ var checkCmd = &cobra.Command{
 		defer db.Close()
 
 		ctx := context.Background()
-		repo := note.NewRepository(db)
+		service := note.NewService(db)
 
-		rows, err := repo.MarkNoteCompleted(ctx, id)
+		_, err = service.CompleteTask(ctx, id)
 		if err != nil {
+			if errors.Is(err, note.ErrTaskNotCompletable()) {
+				fmt.Fprintf(os.Stderr, "Task not found, already completed, or not a task: %d\n", id)
+				os.Exit(1)
+			}
 			fmt.Fprintf(os.Stderr, "Error marking note as completed: %v\n", err)
 			os.Exit(1)
 		}
-		if rows == 0 {
-			fmt.Fprintf(os.Stderr, "Task not found, already completed, or not a task: %d\n", id)
-			os.Exit(1)
-		}
 
-		fmt.Printf("Marked note %d as completed.\n", id)
+		fmt.Printf("Marked task %d as completed.\n", id)
 	},
 }
 

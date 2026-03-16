@@ -7,6 +7,7 @@ package note
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 )
 
@@ -28,25 +29,68 @@ func (q *Queries) AddTagToNote(ctx context.Context, arg AddTagToNoteParams) erro
 	return err
 }
 
+const addTagToTaskSeries = `-- name: AddTagToTaskSeries :exec
+INSERT INTO
+  task_series_tags (task_series_id, tag_id)
+VALUES
+  (?, ?)
+`
+
+type AddTagToTaskSeriesParams struct {
+	TaskSeriesID int64 `json:"task_series_id"`
+	TagID        int64 `json:"tag_id"`
+}
+
+func (q *Queries) AddTagToTaskSeries(ctx context.Context, arg AddTagToTaskSeriesParams) error {
+	_, err := q.db.ExecContext(ctx, addTagToTaskSeries, arg.TaskSeriesID, arg.TagID)
+	return err
+}
+
 const createNote = `-- name: CreateNote :one
 INSERT INTO
-  note (content, is_task)
+  note (
+    content,
+    is_task,
+    due_at,
+    task_series_id,
+    recurrence_rule,
+    recurrence_weekday,
+    recurrence_day_of_month
+  )
 VALUES
-  (?, ?) RETURNING id,
+  (?, ?, ?, ?, ?, ?, ?) RETURNING id,
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 `
 
 type CreateNoteParams struct {
-	Content string `json:"content"`
-	IsTask  int64  `json:"is_task"`
+	Content              string         `json:"content"`
+	IsTask               int64          `json:"is_task"`
+	DueAt                sql.NullTime   `json:"due_at"`
+	TaskSeriesID         sql.NullInt64  `json:"task_series_id"`
+	RecurrenceRule       sql.NullString `json:"recurrence_rule"`
+	RecurrenceWeekday    sql.NullInt64  `json:"recurrence_weekday"`
+	RecurrenceDayOfMonth sql.NullInt64  `json:"recurrence_day_of_month"`
 }
 
 // Notes
 func (q *Queries) CreateNote(ctx context.Context, arg CreateNoteParams) (Note, error) {
-	row := q.db.QueryRowContext(ctx, createNote, arg.Content, arg.IsTask)
+	row := q.db.QueryRowContext(ctx, createNote,
+		arg.Content,
+		arg.IsTask,
+		arg.DueAt,
+		arg.TaskSeriesID,
+		arg.RecurrenceRule,
+		arg.RecurrenceWeekday,
+		arg.RecurrenceDayOfMonth,
+	)
 	var i Note
 	err := row.Scan(
 		&i.ID,
@@ -54,6 +98,11 @@ func (q *Queries) CreateNote(ctx context.Context, arg CreateNoteParams) (Note, e
 		&i.CreatedAt,
 		&i.CompletedAt,
 		&i.IsTask,
+		&i.DueAt,
+		&i.TaskSeriesID,
+		&i.RecurrenceRule,
+		&i.RecurrenceWeekday,
+		&i.RecurrenceDayOfMonth,
 	)
 	return i, err
 }
@@ -73,6 +122,52 @@ func (q *Queries) CreateTag(ctx context.Context, name string) (Tag, error) {
 	return i, err
 }
 
+const createTaskSeries = `-- name: CreateTaskSeries :one
+INSERT INTO
+  task_series (
+    content,
+    recurrence_rule,
+    recurrence_weekday,
+    recurrence_day_of_month
+  )
+VALUES
+  (?, ?, ?, ?) RETURNING id,
+  content,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month,
+  active,
+  created_at
+`
+
+type CreateTaskSeriesParams struct {
+	Content              string        `json:"content"`
+	RecurrenceRule       string        `json:"recurrence_rule"`
+	RecurrenceWeekday    sql.NullInt64 `json:"recurrence_weekday"`
+	RecurrenceDayOfMonth sql.NullInt64 `json:"recurrence_day_of_month"`
+}
+
+// Task series
+func (q *Queries) CreateTaskSeries(ctx context.Context, arg CreateTaskSeriesParams) (TaskSeries, error) {
+	row := q.db.QueryRowContext(ctx, createTaskSeries,
+		arg.Content,
+		arg.RecurrenceRule,
+		arg.RecurrenceWeekday,
+		arg.RecurrenceDayOfMonth,
+	)
+	var i TaskSeries
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.RecurrenceRule,
+		&i.RecurrenceWeekday,
+		&i.RecurrenceDayOfMonth,
+		&i.Active,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const deleteAllTagsFromNote = `-- name: DeleteAllTagsFromNote :exec
 DELETE FROM note_tags
 WHERE
@@ -84,6 +179,17 @@ func (q *Queries) DeleteAllTagsFromNote(ctx context.Context, noteID int64) error
 	return err
 }
 
+const deleteAllTagsFromTaskSeries = `-- name: DeleteAllTagsFromTaskSeries :exec
+DELETE FROM task_series_tags
+WHERE
+  task_series_id = ?
+`
+
+func (q *Queries) DeleteAllTagsFromTaskSeries(ctx context.Context, taskSeriesID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteAllTagsFromTaskSeries, taskSeriesID)
+	return err
+}
+
 const deleteNoteByID = `-- name: DeleteNoteByID :execrows
 DELETE FROM note
 WHERE
@@ -92,6 +198,21 @@ WHERE
 
 func (q *Queries) DeleteNoteByID(ctx context.Context, id int64) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteNoteByID, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deletePendingNotesByTaskSeriesID = `-- name: DeletePendingNotesByTaskSeriesID :execrows
+DELETE FROM note
+WHERE
+  task_series_id = ?
+  AND completed_at IS NULL
+`
+
+func (q *Queries) DeletePendingNotesByTaskSeriesID(ctx context.Context, taskSeriesID sql.NullInt64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deletePendingNotesByTaskSeriesID, taskSeriesID)
 	if err != nil {
 		return 0, err
 	}
@@ -119,7 +240,12 @@ SELECT
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 FROM
   note
 WHERE
@@ -135,6 +261,48 @@ func (q *Queries) GetNoteByID(ctx context.Context, id int64) (Note, error) {
 		&i.CreatedAt,
 		&i.CompletedAt,
 		&i.IsTask,
+		&i.DueAt,
+		&i.TaskSeriesID,
+		&i.RecurrenceRule,
+		&i.RecurrenceWeekday,
+		&i.RecurrenceDayOfMonth,
+	)
+	return i, err
+}
+
+const getPendingNoteByTaskSeriesID = `-- name: GetPendingNoteByTaskSeriesID :one
+SELECT
+  id,
+  content,
+  created_at,
+  completed_at,
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
+FROM
+  note
+WHERE
+  task_series_id = ?
+  AND completed_at IS NULL
+`
+
+func (q *Queries) GetPendingNoteByTaskSeriesID(ctx context.Context, taskSeriesID sql.NullInt64) (Note, error) {
+	row := q.db.QueryRowContext(ctx, getPendingNoteByTaskSeriesID, taskSeriesID)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.CompletedAt,
+		&i.IsTask,
+		&i.DueAt,
+		&i.TaskSeriesID,
+		&i.RecurrenceRule,
+		&i.RecurrenceWeekday,
+		&i.RecurrenceDayOfMonth,
 	)
 	return i, err
 }
@@ -155,13 +323,79 @@ func (q *Queries) GetTag(ctx context.Context, name string) (Tag, error) {
 	return i, err
 }
 
+const getTaskSeriesByID = `-- name: GetTaskSeriesByID :one
+SELECT
+  id,
+  content,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month,
+  active,
+  created_at
+FROM
+  task_series
+WHERE
+  id = ?
+`
+
+func (q *Queries) GetTaskSeriesByID(ctx context.Context, id int64) (TaskSeries, error) {
+	row := q.db.QueryRowContext(ctx, getTaskSeriesByID, id)
+	var i TaskSeries
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.RecurrenceRule,
+		&i.RecurrenceWeekday,
+		&i.RecurrenceDayOfMonth,
+		&i.Active,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getTaskSeriesByNoteID = `-- name: GetTaskSeriesByNoteID :one
+SELECT
+  ts.id,
+  ts.content,
+  ts.recurrence_rule,
+  ts.recurrence_weekday,
+  ts.recurrence_day_of_month,
+  ts.active,
+  ts.created_at
+FROM
+  task_series ts
+  INNER JOIN note n ON n.task_series_id = ts.id
+WHERE
+  n.id = ?
+`
+
+func (q *Queries) GetTaskSeriesByNoteID(ctx context.Context, id int64) (TaskSeries, error) {
+	row := q.db.QueryRowContext(ctx, getTaskSeriesByNoteID, id)
+	var i TaskSeries
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.RecurrenceRule,
+		&i.RecurrenceWeekday,
+		&i.RecurrenceDayOfMonth,
+		&i.Active,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listNotes = `-- name: ListNotes :many
 SELECT
   id,
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 FROM
   note
 ORDER BY
@@ -183,6 +417,11 @@ func (q *Queries) ListNotes(ctx context.Context) ([]Note, error) {
 			&i.CreatedAt,
 			&i.CompletedAt,
 			&i.IsTask,
+			&i.DueAt,
+			&i.TaskSeriesID,
+			&i.RecurrenceRule,
+			&i.RecurrenceWeekday,
+			&i.RecurrenceDayOfMonth,
 		); err != nil {
 			return nil, err
 		}
@@ -316,13 +555,53 @@ func (q *Queries) ListTagsByNoteIDs(ctx context.Context, noteIds []int64) ([]Lis
 	return items, nil
 }
 
+const listTagsByTaskSeriesID = `-- name: ListTagsByTaskSeriesID :many
+SELECT
+  t.name
+FROM
+  tags t
+  INNER JOIN task_series_tags tst ON t.id = tst.tag_id
+WHERE
+  tst.task_series_id = ?
+ORDER BY
+  t.name
+`
+
+func (q *Queries) ListTagsByTaskSeriesID(ctx context.Context, taskSeriesID int64) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listTagsByTaskSeriesID, taskSeriesID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		items = append(items, name)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTasks = `-- name: ListTasks :many
 SELECT
   id,
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 FROM
   note
 WHERE
@@ -346,6 +625,11 @@ func (q *Queries) ListTasks(ctx context.Context) ([]Note, error) {
 			&i.CreatedAt,
 			&i.CompletedAt,
 			&i.IsTask,
+			&i.DueAt,
+			&i.TaskSeriesID,
+			&i.RecurrenceRule,
+			&i.RecurrenceWeekday,
+			&i.RecurrenceDayOfMonth,
 		); err != nil {
 			return nil, err
 		}
@@ -384,7 +668,12 @@ SELECT
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 FROM
   note
 WHERE
@@ -433,6 +722,11 @@ func (q *Queries) SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Not
 			&i.CreatedAt,
 			&i.CompletedAt,
 			&i.IsTask,
+			&i.DueAt,
+			&i.TaskSeriesID,
+			&i.RecurrenceRule,
+			&i.RecurrenceWeekday,
+			&i.RecurrenceDayOfMonth,
 		); err != nil {
 			return nil, err
 		}
@@ -453,7 +747,12 @@ SELECT
   n.content,
   n.created_at,
   n.completed_at,
-  n.is_task
+  n.is_task,
+  n.due_at,
+  n.task_series_id,
+  n.recurrence_rule,
+  n.recurrence_weekday,
+  n.recurrence_day_of_month
 FROM
   notes_fts
   INNER JOIN note n ON n.id = notes_fts.rowid
@@ -506,6 +805,11 @@ func (q *Queries) SearchNotesByContent(ctx context.Context, arg SearchNotesByCon
 			&i.CreatedAt,
 			&i.CompletedAt,
 			&i.IsTask,
+			&i.DueAt,
+			&i.TaskSeriesID,
+			&i.RecurrenceRule,
+			&i.RecurrenceWeekday,
+			&i.RecurrenceDayOfMonth,
 		); err != nil {
 			return nil, err
 		}
@@ -526,7 +830,12 @@ SELECT
   n.content,
   n.created_at,
   n.completed_at,
-  n.is_task
+  n.is_task,
+  n.due_at,
+  n.task_series_id,
+  n.recurrence_rule,
+  n.recurrence_weekday,
+  n.recurrence_day_of_month
 FROM
   note n
   INNER JOIN note_tags nt ON n.id = nt.note_id
@@ -580,6 +889,11 @@ func (q *Queries) SearchNotesByTag(ctx context.Context, arg SearchNotesByTagPara
 			&i.CreatedAt,
 			&i.CompletedAt,
 			&i.IsTask,
+			&i.DueAt,
+			&i.TaskSeriesID,
+			&i.RecurrenceRule,
+			&i.RecurrenceWeekday,
+			&i.RecurrenceDayOfMonth,
 		); err != nil {
 			return nil, err
 		}
@@ -600,7 +914,12 @@ SELECT
   n.content,
   n.created_at,
   n.completed_at,
-  n.is_task
+  n.is_task,
+  n.due_at,
+  n.task_series_id,
+  n.recurrence_rule,
+  n.recurrence_weekday,
+  n.recurrence_day_of_month
 FROM
   notes_fts
   INNER JOIN note n ON n.id = notes_fts.rowid
@@ -658,6 +977,11 @@ func (q *Queries) SearchNotesByTagAndContent(ctx context.Context, arg SearchNote
 			&i.CreatedAt,
 			&i.CompletedAt,
 			&i.IsTask,
+			&i.DueAt,
+			&i.TaskSeriesID,
+			&i.RecurrenceRule,
+			&i.RecurrenceWeekday,
+			&i.RecurrenceDayOfMonth,
 		); err != nil {
 			return nil, err
 		}
@@ -672,6 +996,80 @@ func (q *Queries) SearchNotesByTagAndContent(ctx context.Context, arg SearchNote
 	return items, nil
 }
 
+const setTaskSeriesInactive = `-- name: SetTaskSeriesInactive :execrows
+UPDATE task_series
+SET
+  active = 0
+WHERE
+  id = ?
+`
+
+func (q *Queries) SetTaskSeriesInactive(ctx context.Context, id int64) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setTaskSeriesInactive, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateNoteAttributesByID = `-- name: UpdateNoteAttributesByID :one
+UPDATE note
+SET
+  content = ?,
+  due_at = ?,
+  task_series_id = ?,
+  recurrence_rule = ?,
+  recurrence_weekday = ?,
+  recurrence_day_of_month = ?
+WHERE
+  id = ? RETURNING id,
+  content,
+  created_at,
+  completed_at,
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
+`
+
+type UpdateNoteAttributesByIDParams struct {
+	Content              string         `json:"content"`
+	DueAt                sql.NullTime   `json:"due_at"`
+	TaskSeriesID         sql.NullInt64  `json:"task_series_id"`
+	RecurrenceRule       sql.NullString `json:"recurrence_rule"`
+	RecurrenceWeekday    sql.NullInt64  `json:"recurrence_weekday"`
+	RecurrenceDayOfMonth sql.NullInt64  `json:"recurrence_day_of_month"`
+	ID                   int64          `json:"id"`
+}
+
+func (q *Queries) UpdateNoteAttributesByID(ctx context.Context, arg UpdateNoteAttributesByIDParams) (Note, error) {
+	row := q.db.QueryRowContext(ctx, updateNoteAttributesByID,
+		arg.Content,
+		arg.DueAt,
+		arg.TaskSeriesID,
+		arg.RecurrenceRule,
+		arg.RecurrenceWeekday,
+		arg.RecurrenceDayOfMonth,
+		arg.ID,
+	)
+	var i Note
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.CreatedAt,
+		&i.CompletedAt,
+		&i.IsTask,
+		&i.DueAt,
+		&i.TaskSeriesID,
+		&i.RecurrenceRule,
+		&i.RecurrenceWeekday,
+		&i.RecurrenceDayOfMonth,
+	)
+	return i, err
+}
+
 const updateNoteContentByID = `-- name: UpdateNoteContentByID :one
 UPDATE note
 SET
@@ -681,7 +1079,12 @@ WHERE
   content,
   created_at,
   completed_at,
-  is_task
+  is_task,
+  due_at,
+  task_series_id,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month
 `
 
 type UpdateNoteContentByIDParams struct {
@@ -698,6 +1101,60 @@ func (q *Queries) UpdateNoteContentByID(ctx context.Context, arg UpdateNoteConte
 		&i.CreatedAt,
 		&i.CompletedAt,
 		&i.IsTask,
+		&i.DueAt,
+		&i.TaskSeriesID,
+		&i.RecurrenceRule,
+		&i.RecurrenceWeekday,
+		&i.RecurrenceDayOfMonth,
+	)
+	return i, err
+}
+
+const updateTaskSeries = `-- name: UpdateTaskSeries :one
+UPDATE task_series
+SET
+  content = ?,
+  recurrence_rule = ?,
+  recurrence_weekday = ?,
+  recurrence_day_of_month = ?,
+  active = ?
+WHERE
+  id = ? RETURNING id,
+  content,
+  recurrence_rule,
+  recurrence_weekday,
+  recurrence_day_of_month,
+  active,
+  created_at
+`
+
+type UpdateTaskSeriesParams struct {
+	Content              string        `json:"content"`
+	RecurrenceRule       string        `json:"recurrence_rule"`
+	RecurrenceWeekday    sql.NullInt64 `json:"recurrence_weekday"`
+	RecurrenceDayOfMonth sql.NullInt64 `json:"recurrence_day_of_month"`
+	Active               int64         `json:"active"`
+	ID                   int64         `json:"id"`
+}
+
+func (q *Queries) UpdateTaskSeries(ctx context.Context, arg UpdateTaskSeriesParams) (TaskSeries, error) {
+	row := q.db.QueryRowContext(ctx, updateTaskSeries,
+		arg.Content,
+		arg.RecurrenceRule,
+		arg.RecurrenceWeekday,
+		arg.RecurrenceDayOfMonth,
+		arg.Active,
+		arg.ID,
+	)
+	var i TaskSeries
+	err := row.Scan(
+		&i.ID,
+		&i.Content,
+		&i.RecurrenceRule,
+		&i.RecurrenceWeekday,
+		&i.RecurrenceDayOfMonth,
+		&i.Active,
+		&i.CreatedAt,
 	)
 	return i, err
 }

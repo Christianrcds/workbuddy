@@ -10,11 +10,16 @@ import (
 )
 
 type Note struct {
-	ID          int64        `json:"id"`
-	Content     string       `json:"content"`
-	CreatedAt   time.Time    `json:"created_at"`
-	CompletedAt sql.NullTime `json:"completed_at"`
-	IsTask      int64        `json:"is_task"`
+	ID                   int64          `json:"id"`
+	Content              string         `json:"content"`
+	CreatedAt            time.Time      `json:"created_at"`
+	CompletedAt          sql.NullTime   `json:"completed_at"`
+	IsTask               int64          `json:"is_task"`
+	DueAt                sql.NullTime   `json:"due_at"`
+	TaskSeriesID         sql.NullInt64  `json:"task_series_id"`
+	RecurrenceRule       sql.NullString `json:"recurrence_rule"`
+	RecurrenceWeekday    sql.NullInt64  `json:"recurrence_weekday"`
+	RecurrenceDayOfMonth sql.NullInt64  `json:"recurrence_day_of_month"`
 }
 
 type NoteTag struct {
@@ -30,4 +35,19 @@ type Tag struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type TaskSeries struct {
+	ID                   int64         `json:"id"`
+	Content              string        `json:"content"`
+	RecurrenceRule       string        `json:"recurrence_rule"`
+	RecurrenceWeekday    sql.NullInt64 `json:"recurrence_weekday"`
+	RecurrenceDayOfMonth sql.NullInt64 `json:"recurrence_day_of_month"`
+	Active               int64         `json:"active"`
+	CreatedAt            time.Time     `json:"created_at"`
+}
+
+type TaskSeriesTag struct {
+	TaskSeriesID int64 `json:"task_series_id"`
+	TagID        int64 `json:"tag_id"`
 }

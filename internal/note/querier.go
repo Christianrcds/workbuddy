@@ -6,31 +6,44 @@ package note
 
 import (
 	"context"
+	"database/sql"
 )
 
 type Querier interface {
 	// Note Tags Relationships
 	AddTagToNote(ctx context.Context, arg AddTagToNoteParams) error
+	AddTagToTaskSeries(ctx context.Context, arg AddTagToTaskSeriesParams) error
 	// Notes
 	CreateNote(ctx context.Context, arg CreateNoteParams) (Note, error)
 	// Tags
 	CreateTag(ctx context.Context, name string) (Tag, error)
+	// Task series
+	CreateTaskSeries(ctx context.Context, arg CreateTaskSeriesParams) (TaskSeries, error)
 	DeleteAllTagsFromNote(ctx context.Context, noteID int64) error
+	DeleteAllTagsFromTaskSeries(ctx context.Context, taskSeriesID int64) error
 	DeleteNoteByID(ctx context.Context, id int64) (int64, error)
+	DeletePendingNotesByTaskSeriesID(ctx context.Context, taskSeriesID sql.NullInt64) (int64, error)
 	DeleteTaskByID(ctx context.Context, id int64) (int64, error)
 	GetNoteByID(ctx context.Context, id int64) (Note, error)
+	GetPendingNoteByTaskSeriesID(ctx context.Context, taskSeriesID sql.NullInt64) (Note, error)
 	GetTag(ctx context.Context, name string) (Tag, error)
+	GetTaskSeriesByID(ctx context.Context, id int64) (TaskSeries, error)
+	GetTaskSeriesByNoteID(ctx context.Context, id int64) (TaskSeries, error)
 	ListNotes(ctx context.Context) ([]Note, error)
 	ListTags(ctx context.Context, name string) ([]Tag, error)
 	ListTagsByNoteID(ctx context.Context, noteID int64) ([]string, error)
 	ListTagsByNoteIDs(ctx context.Context, noteIds []int64) ([]ListTagsByNoteIDsRow, error)
+	ListTagsByTaskSeriesID(ctx context.Context, taskSeriesID int64) ([]string, error)
 	ListTasks(ctx context.Context) ([]Note, error)
 	MarkNoteCompleted(ctx context.Context, id int64) (int64, error)
 	SearchNotes(ctx context.Context, arg SearchNotesParams) ([]Note, error)
 	SearchNotesByContent(ctx context.Context, arg SearchNotesByContentParams) ([]Note, error)
 	SearchNotesByTag(ctx context.Context, arg SearchNotesByTagParams) ([]Note, error)
 	SearchNotesByTagAndContent(ctx context.Context, arg SearchNotesByTagAndContentParams) ([]Note, error)
+	SetTaskSeriesInactive(ctx context.Context, id int64) (int64, error)
+	UpdateNoteAttributesByID(ctx context.Context, arg UpdateNoteAttributesByIDParams) (Note, error)
 	UpdateNoteContentByID(ctx context.Context, arg UpdateNoteContentByIDParams) (Note, error)
+	UpdateTaskSeries(ctx context.Context, arg UpdateTaskSeriesParams) (TaskSeries, error)
 }
 
 var _ Querier = (*Queries)(nil)

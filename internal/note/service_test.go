@@ -2,10 +2,12 @@ package note
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 )
 
 func TestGetNotesByTag(t *testing.T) {
@@ -589,6 +591,536 @@ func TestSearchNotes_ByContent(t *testing.T) {
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+func TestCreateNoteWithParams_RecurringValidation(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	dueDate := mustDate(t, "2026-03-16")
+	weeklyRule := RecurrenceWeekly
+	monthlyRule := RecurrenceMonthly
+
+	tests := []struct {
+		name    string
+		params  CreateParams
+		wantErr error
+	}{
+		{
+			name: "rejects recurrence on non-task notes",
+			params: CreateParams{
+				Content:        "Plan the week",
+				RecurrenceRule: weeklyRule,
+				DueDate:        &dueDate,
+				RecurrenceWeekday: func() *time.Weekday {
+					day := time.Monday
+					return &day
+				}(),
+			},
+			wantErr: errRecurringRequiresTask,
+		},
+		{
+			name: "requires due date for recurring tasks",
+			params: CreateParams{
+				Content:        "Daily standup",
+				IsTask:         true,
+				RecurrenceRule: RecurrenceDaily,
+			},
+			wantErr: errRecurringRequiresDueDate,
+		},
+		{
+			name: "weekly recurrence requires weekday",
+			params: CreateParams{
+				Content:        "Weekly planning",
+				IsTask:         true,
+				DueDate:        &dueDate,
+				RecurrenceRule: weeklyRule,
+			},
+			wantErr: errWeeklyRequiresWeekday,
+		},
+		{
+			name: "monthly recurrence requires day of month",
+			params: CreateParams{
+				Content:        "Close books",
+				IsTask:         true,
+				DueDate:        dueDatePtr(t, "2026-03-31"),
+				RecurrenceRule: monthlyRule,
+			},
+			wantErr: errMonthlyRequiresDayOfMonth,
+		},
+		{
+			name: "weekly recurrence validates due weekday",
+			params: CreateParams{
+				Content:        "Weekly planning",
+				IsTask:         true,
+				DueDate:        dueDatePtr(t, "2026-03-17"),
+				RecurrenceRule: weeklyRule,
+				RecurrenceWeekday: func() *time.Weekday {
+					day := time.Monday
+					return &day
+				}(),
+			},
+			wantErr: errDueDateWeekdayMismatch,
+		},
+		{
+			name: "monthly recurrence validates due day",
+			params: CreateParams{
+				Content:              "Close books",
+				IsTask:               true,
+				DueDate:              dueDatePtr(t, "2026-03-30"),
+				RecurrenceRule:       monthlyRule,
+				RecurrenceDayOfMonth: intPtr(31),
+			},
+			wantErr: errDueDateDayOfMonthMismatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := service.CreateNoteWithParams(ctx, tt.params)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("expected %v, got %v", tt.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestCreateNoteWithParams_CreatesRecurringTasks(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	tests := []struct {
+		name   string
+		params CreateParams
+	}{
+		{
+			name: "creates daily recurring task",
+			params: CreateParams{
+				Content:        "Daily standup",
+				Tags:           []string{"work", "team"},
+				IsTask:         true,
+				DueDate:        dueDatePtr(t, "2026-03-16"),
+				RecurrenceRule: RecurrenceDaily,
+			},
+		},
+		{
+			name: "creates weekly recurring task",
+			params: CreateParams{
+				Content:           "Weekly planning",
+				Tags:              []string{"work"},
+				IsTask:            true,
+				DueDate:           dueDatePtr(t, "2026-03-16"),
+				RecurrenceRule:    RecurrenceWeekly,
+				RecurrenceWeekday: weekdayPtr(time.Monday),
+			},
+		},
+		{
+			name: "creates monthly recurring task",
+			params: CreateParams{
+				Content:              "Monthly close",
+				Tags:                 []string{"finance"},
+				IsTask:               true,
+				DueDate:              dueDatePtr(t, "2026-03-31"),
+				RecurrenceRule:       RecurrenceMonthly,
+				RecurrenceDayOfMonth: intPtr(31),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			created, err := service.CreateNoteWithParams(ctx, tt.params)
+			if err != nil {
+				t.Fatalf("CreateNoteWithParams returned error: %v", err)
+			}
+
+			if !created.TaskSeriesID.Valid {
+				t.Fatal("expected recurring task to be linked to a task series")
+			}
+			if !created.DueAt.Valid {
+				t.Fatal("expected recurring task to have a due date")
+			}
+			if created.RecurrenceRule.String != string(tt.params.RecurrenceRule) {
+				t.Fatalf("recurrence rule = %q, want %q", created.RecurrenceRule.String, tt.params.RecurrenceRule)
+			}
+
+			assertTaskSeriesState(t, db, created.TaskSeriesID.Int64, taskSeriesExpectation{
+				Content:        tt.params.Content,
+				Rule:           string(tt.params.RecurrenceRule),
+				Weekday:        weekdayInt(tt.params.RecurrenceWeekday),
+				DayOfMonth:     int64Ptr(tt.params.RecurrenceDayOfMonth),
+				Active:         true,
+				ExpectedTags:   normalizeTags(tt.params.Tags),
+				PendingNoteID:  created.ID,
+				PendingDueDate: tt.params.DueDate.Format(dateLayout),
+			})
+		})
+	}
+}
+
+func TestUpdateNote_RecurringSeriesSyncsPendingOccurrence(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	created, err := service.CreateNoteWithParams(ctx, CreateParams{
+		Content:        "Weekly planning",
+		Tags:           []string{"work"},
+		IsTask:         true,
+		DueDate:        dueDatePtr(t, "2026-03-16"),
+		RecurrenceRule: RecurrenceWeekly,
+		RecurrenceWeekday: func() *time.Weekday {
+			day := time.Monday
+			return &day
+		}(),
+	})
+	if err != nil {
+		t.Fatalf("failed to create recurring task: %v", err)
+	}
+
+	newContent := "Weekly planning and staffing"
+	newRule := RecurrenceMonthly
+	updated, err := service.UpdateNote(ctx, created.ID, UpdateParams{
+		Content:              &newContent,
+		AddTags:              []string{"urgent"},
+		DueDate:              dueDatePtr(t, "2026-03-31"),
+		RecurrenceRule:       &newRule,
+		RecurrenceDayOfMonth: intPtr(31),
+	})
+	if err != nil {
+		t.Fatalf("UpdateNote returned error: %v", err)
+	}
+
+	if updated.Content != newContent {
+		t.Fatalf("updated content = %q, want %q", updated.Content, newContent)
+	}
+	if updated.RecurrenceRule.String != string(newRule) {
+		t.Fatalf("updated rule = %q, want %q", updated.RecurrenceRule.String, newRule)
+	}
+	if got := updated.DueAt.Time.Format(dateLayout); got != "2026-03-31" {
+		t.Fatalf("updated due date = %q, want %q", got, "2026-03-31")
+	}
+
+	assertTaskSeriesState(t, db, created.TaskSeriesID.Int64, taskSeriesExpectation{
+		Content:        newContent,
+		Rule:           string(newRule),
+		DayOfMonth:     int64Ptr(intPtr(31)),
+		Active:         true,
+		ExpectedTags:   []string{"urgent", "work"},
+		PendingNoteID:  created.ID,
+		PendingDueDate: "2026-03-31",
+	})
+}
+
+func TestCompleteTask_RecurringTasksGenerateOneNextOccurrence(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	nonRecurring, err := service.CreateNoteWithParams(ctx, CreateParams{
+		Content: "Ship release",
+		Tags:    []string{"ops"},
+		IsTask:  true,
+		DueDate: dueDatePtr(t, "2026-03-16"),
+	})
+	if err != nil {
+		t.Fatalf("failed to create non-recurring task: %v", err)
+	}
+
+	result, err := service.CompleteTask(ctx, nonRecurring.ID)
+	if err != nil {
+		t.Fatalf("CompleteTask returned error: %v", err)
+	}
+	if result.Next != nil {
+		t.Fatal("expected non-recurring task completion to not create a successor")
+	}
+
+	recurring, err := service.CreateNoteWithParams(ctx, CreateParams{
+		Content:        "Daily standup",
+		Tags:           []string{"team"},
+		IsTask:         true,
+		DueDate:        dueDatePtr(t, "2026-03-10"),
+		RecurrenceRule: RecurrenceDaily,
+	})
+	if err != nil {
+		t.Fatalf("failed to create recurring task: %v", err)
+	}
+
+	completeRecurring, err := service.CompleteTask(ctx, recurring.ID)
+	if err != nil {
+		t.Fatalf("CompleteTask returned error: %v", err)
+	}
+	if completeRecurring.Next == nil {
+		t.Fatal("expected recurring task completion to create a successor")
+	}
+	if got := completeRecurring.Next.DueAt.Time.Format(dateLayout); got != "2026-03-11" {
+		t.Fatalf("next due date = %q, want %q", got, "2026-03-11")
+	}
+
+	secondAttempt, err := service.CompleteTask(ctx, recurring.ID)
+	if err == nil {
+		t.Fatalf("expected second completion attempt to fail, got result=%+v", secondAttempt)
+	}
+
+	assertPendingCount(t, db, recurring.TaskSeriesID.Int64, 1)
+	assertTaskSeriesState(t, db, recurring.TaskSeriesID.Int64, taskSeriesExpectation{
+		Content:        "Daily standup",
+		Rule:           string(RecurrenceDaily),
+		Active:         true,
+		ExpectedTags:   []string{"team"},
+		PendingNoteID:  completeRecurring.Next.ID,
+		PendingDueDate: "2026-03-11",
+	})
+}
+
+func TestCompleteTask_MonthlyRolloverClampsToMonthEnd(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	recurring, err := service.CreateNoteWithParams(ctx, CreateParams{
+		Content:              "Monthly close",
+		IsTask:               true,
+		DueDate:              dueDatePtr(t, "2026-01-31"),
+		RecurrenceRule:       RecurrenceMonthly,
+		RecurrenceDayOfMonth: intPtr(31),
+	})
+	if err != nil {
+		t.Fatalf("failed to create recurring task: %v", err)
+	}
+
+	first, err := service.CompleteTask(ctx, recurring.ID)
+	if err != nil {
+		t.Fatalf("failed first completion: %v", err)
+	}
+	if got := first.Next.DueAt.Time.Format(dateLayout); got != "2026-02-28" {
+		t.Fatalf("first rollover due date = %q, want %q", got, "2026-02-28")
+	}
+
+	second, err := service.CompleteTask(ctx, first.Next.ID)
+	if err != nil {
+		t.Fatalf("failed second completion: %v", err)
+	}
+	if got := second.Next.DueAt.Time.Format(dateLayout); got != "2026-03-31" {
+		t.Fatalf("second rollover due date = %q, want %q", got, "2026-03-31")
+	}
+}
+
+func TestRemoveNote_RecurringSeriesPreservesCompletedHistory(t *testing.T) {
+	db := newTestDB(t)
+	service := NewService(db)
+	ctx := context.Background()
+
+	recurring, err := service.CreateNoteWithParams(ctx, CreateParams{
+		Content:        "Weekly planning",
+		Tags:           []string{"work"},
+		IsTask:         true,
+		DueDate:        dueDatePtr(t, "2026-03-16"),
+		RecurrenceRule: RecurrenceWeekly,
+		RecurrenceWeekday: func() *time.Weekday {
+			day := time.Monday
+			return &day
+		}(),
+	})
+	if err != nil {
+		t.Fatalf("failed to create recurring task: %v", err)
+	}
+
+	completion, err := service.CompleteTask(ctx, recurring.ID)
+	if err != nil {
+		t.Fatalf("failed to complete recurring task: %v", err)
+	}
+
+	removed, err := service.RemoveNote(ctx, completion.Next.ID)
+	if err != nil {
+		t.Fatalf("RemoveNote returned error: %v", err)
+	}
+	if !removed.RemovedSeries {
+		t.Fatal("expected recurring series removal to be reported")
+	}
+
+	assertTaskSeriesState(t, db, recurring.TaskSeriesID.Int64, taskSeriesExpectation{
+		Content:      "Weekly planning",
+		Rule:         string(RecurrenceWeekly),
+		Weekday:      int64Ptr(intPtr(int(time.Monday))),
+		Active:       false,
+		ExpectedTags: []string{"work"},
+	})
+	assertPendingCount(t, db, recurring.TaskSeriesID.Int64, 0)
+
+	history, err := service.GetNoteByID(ctx, recurring.ID)
+	if err != nil {
+		t.Fatalf("failed to reload completed occurrence: %v", err)
+	}
+	if !history.CompletedAt.Valid {
+		t.Fatal("expected completed recurring occurrence to remain in history")
+	}
+}
+
+const dateLayout = "2006-01-02"
+
+type taskSeriesExpectation struct {
+	Content        string
+	Rule           string
+	Weekday        *int64
+	DayOfMonth     *int64
+	Active         bool
+	ExpectedTags   []string
+	PendingNoteID  int64
+	PendingDueDate string
+}
+
+func mustDate(t *testing.T, value string) time.Time {
+	t.Helper()
+
+	parsed, err := time.Parse(dateLayout, value)
+	if err != nil {
+		t.Fatalf("failed to parse date %q: %v", value, err)
+	}
+	return parsed
+}
+
+func dueDatePtr(t *testing.T, value string) *time.Time {
+	t.Helper()
+	parsed := mustDate(t, value)
+	return &parsed
+}
+
+func weekdayPtr(day time.Weekday) *time.Weekday {
+	return &day
+}
+
+func intPtr(v int) *int {
+	return &v
+}
+
+func weekdayInt(day *time.Weekday) *int64 {
+	if day == nil {
+		return nil
+	}
+	value := int64(*day)
+	return &value
+}
+
+func int64Ptr(value *int) *int64 {
+	if value == nil {
+		return nil
+	}
+	out := int64(*value)
+	return &out
+}
+
+func assertTaskSeriesState(t *testing.T, db *sql.DB, seriesID int64, want taskSeriesExpectation) {
+	t.Helper()
+
+	row := db.QueryRowContext(t.Context(), `
+SELECT content, recurrence_rule, recurrence_weekday, recurrence_day_of_month, active
+FROM task_series
+WHERE id = ?`, seriesID)
+
+	var (
+		content    string
+		rule       string
+		weekday    sql.NullInt64
+		dayOfMonth sql.NullInt64
+		active     int64
+	)
+	if err := row.Scan(&content, &rule, &weekday, &dayOfMonth, &active); err != nil {
+		t.Fatalf("failed to load task_series %d: %v", seriesID, err)
+	}
+
+	if content != want.Content {
+		t.Fatalf("series content = %q, want %q", content, want.Content)
+	}
+	if rule != want.Rule {
+		t.Fatalf("series rule = %q, want %q", rule, want.Rule)
+	}
+	if got, expected := nullInt64Ptr(weekday), want.Weekday; !reflect.DeepEqual(got, expected) {
+		t.Fatalf("series weekday = %v, want %v", got, expected)
+	}
+	if got, expected := nullInt64Ptr(dayOfMonth), want.DayOfMonth; !reflect.DeepEqual(got, expected) {
+		t.Fatalf("series day_of_month = %v, want %v", got, expected)
+	}
+	if got := active == 1; got != want.Active {
+		t.Fatalf("series active = %v, want %v", got, want.Active)
+	}
+
+	tagRows, err := db.QueryContext(t.Context(), `
+SELECT t.name
+FROM task_series_tags tst
+INNER JOIN tags t ON t.id = tst.tag_id
+WHERE tst.task_series_id = ?
+ORDER BY t.name`, seriesID)
+	if err != nil {
+		t.Fatalf("failed to load task_series tags: %v", err)
+	}
+	defer tagRows.Close()
+
+	var gotTags []string
+	for tagRows.Next() {
+		var tag string
+		if err := tagRows.Scan(&tag); err != nil {
+			t.Fatalf("failed to scan task_series tag: %v", err)
+		}
+		gotTags = append(gotTags, tag)
+	}
+	if err := tagRows.Err(); err != nil {
+		t.Fatalf("failed to iterate task_series tags: %v", err)
+	}
+
+	if !reflect.DeepEqual(gotTags, want.ExpectedTags) {
+		t.Fatalf("series tags = %v, want %v", gotTags, want.ExpectedTags)
+	}
+
+	if want.PendingNoteID == 0 {
+		return
+	}
+
+	pendingRow := db.QueryRowContext(t.Context(), `
+SELECT id, due_at
+FROM note
+WHERE task_series_id = ? AND completed_at IS NULL`, seriesID)
+	var pendingID int64
+	var dueAt sql.NullTime
+	if err := pendingRow.Scan(&pendingID, &dueAt); err != nil {
+		t.Fatalf("failed to load pending occurrence for task_series %d: %v", seriesID, err)
+	}
+	if pendingID != want.PendingNoteID {
+		t.Fatalf("pending note id = %d, want %d", pendingID, want.PendingNoteID)
+	}
+	if !dueAt.Valid {
+		t.Fatal("expected pending occurrence to have a due date")
+	}
+	if got := dueAt.Time.Format(dateLayout); got != want.PendingDueDate {
+		t.Fatalf("pending due date = %q, want %q", got, want.PendingDueDate)
+	}
+}
+
+func assertPendingCount(t *testing.T, db *sql.DB, seriesID int64, want int) {
+	t.Helper()
+
+	row := db.QueryRowContext(t.Context(), `
+SELECT COUNT(*)
+FROM note
+WHERE task_series_id = ? AND completed_at IS NULL`, seriesID)
+
+	var got int
+	if err := row.Scan(&got); err != nil {
+		t.Fatalf("failed to count pending occurrences: %v", err)
+	}
+	if got != want {
+		t.Fatalf("pending occurrences = %d, want %d", got, want)
+	}
+}
+
+func nullInt64Ptr(v sql.NullInt64) *int64 {
+	if !v.Valid {
+		return nil
+	}
+	value := v.Int64
+	return &value
 }
 
 // Mock implementations
